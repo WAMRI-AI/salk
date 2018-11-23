@@ -70,6 +70,6 @@ class SuperResLabelList(ImageItemList):
 class SuperResItemList(ImageItemList):
     def __post_init__(self):
         super().__post_init__()
-        self._label_cls = SuperResLabelList
+        self.label_cls = SuperResLabelList
         self.loss_func = MSELossFlat()
         self.create_func = open_grayscale

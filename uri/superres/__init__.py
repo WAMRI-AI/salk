@@ -127,7 +127,7 @@ class ICNRUpsample(nn.Module):
         return self.features(x)
 
 class WDSR(nn.Module):
-    def __init__(self, scale, n_resblocks, n_feats, res_scale, n_colors=3):
+    def __init__(self, scale, n_resblocks, n_feats, res_scale, n_colors_in=3, n_colors_out=1):
         super().__init__()
 
         # hyper-params
@@ -135,13 +135,13 @@ class WDSR(nn.Module):
         act = nn.ReLU(True)
         wn = lambda x: torch.nn.utils.weight_norm(x)
 
-        mean, std = [0.40], [0.50] # imagenet_stats
-        self.rgb_mean = torch.FloatTensor(mean).view([1, n_colors, 1, 1])
-        self.rgb_std = torch.FloatTensor(std).view([1, n_colors, 1, 1])
+        #mean, std = [.0020], [0.0060]] # imagenet_stats
+        #self.rgb_mean = torch.FloatTensor(mean).view([1, n_colors_in, 1, 1])
+        ##self.rgb_std = torch.FloatTensor(std).view([1, n_colors_in, 1, 1])
 
         # define head module
         head = []
-        head.append(wn(nn.Conv2d(n_colors, n_feats,kernel_size,padding=kernel_size//2)))
+        head.append(wn(nn.Conv2d(n_colors_in, n_feats,kernel_size,padding=kernel_size//2)))
 
         # define body module
         body = []
@@ -151,11 +151,16 @@ class WDSR(nn.Module):
 
         # define tail module
         tail = []
-        out_feats = scale*scale*n_colors
+        # convert from n_color_in to n_color_out
+        #tail.append(wn(nn.Conv2d(n_feats, n_colors_out, kernel_size, padding=kernel_size//2)))
+
+
+        out_feats = scale*scale*n_colors_out
         tail.append(ICNRUpsample(n_feats, out_feats, kernel_size, scale, wn))
 
         skip = []
-        skip.append(ICNRUpsample(n_colors, out_feats, 5, scale, wn))
+        skip.append(wn(nn.Conv2d(n_colors_in, n_colors_out, kernel_size, padding=kernel_size//2)))
+        skip.append(ICNRUpsample(n_colors_out, out_feats, 5, scale, wn))
 
         # make object members
         self.head = nn.Sequential(*head)
@@ -164,16 +169,16 @@ class WDSR(nn.Module):
         self.skip = nn.Sequential(*skip)
 
     def forward(self, x):
-        mean = self.rgb_mean.to(x)
-        std = self.rgb_std.to(x)
+        #mean = self.rgb_mean.to(x)
+        #std = self.rgb_std.to(x)
 
-        x = (x - mean) / std
+        #x = (x - mean) / std
         s = self.skip(x)
         x = self.head(x)
         x = self.body(x)
         x = self.tail(x)
         x += s
-        x = x*std + mean
+        # x = x*std + mean
 
         return x
 

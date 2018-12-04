@@ -201,7 +201,8 @@ ssim_loss = ssim.SSIM(mult=-1.)
 def combo_edge_mse(input, target):
     return F.mse_loss(input, target) + edge_loss(input, target)
 
-superres_metrics = [F.mse_loss, edge_loss,ssim.ssim, psnr]
+# superres_metrics = [F.mse_loss, edge_loss,ssim.ssim, psnr]
+superres_metrics = [F.mse_loss, ssim.ssim, psnr]
 
 class GrayImageItemList(ImageItemList):
     def open(self, fn): return open_grayscale(fn)

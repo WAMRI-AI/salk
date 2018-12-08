@@ -4,12 +4,12 @@ import torch.nn.functional as F
 import math
 from fastai import Iterator, MSELossFlat, partial, Learner, tensor
 from fastai.vision import ImageItemList, Image, pil2tensor, get_transforms
-from fastai.layers import Lambda
+from fastai.layers import Lambda, PixelShuffle_ICNR
 from fastai.callbacks import SaveModelCallback
 import PIL
 import numpy as np
 import pytorch_ssim as ssim
-
+from .dbpn_v1 import Net as DBPNLL
 
 def conv(ni, nf, kernel_size=3, actn=True):
     layers = [nn.Conv2d(ni, nf, kernel_size, padding=kernel_size//2)]
@@ -79,20 +79,6 @@ class SuperResItemList(ImageItemList):
         self.create_func = open_grayscale
 
 
-def icnr(x, scale, init=nn.init.kaiming_normal_):
-    new_shape = [int(x.shape[0] / (scale ** 2))] + list(x.shape[1:])
-    subkernel = torch.zeros(new_shape)
-    subkernel = init(subkernel)
-    subkernel = subkernel.transpose(0, 1)
-    subkernel = subkernel.contiguous().view(subkernel.shape[0],
-                                            subkernel.shape[1], -1)
-    kernel = subkernel.repeat(1, 1, scale ** 2)
-    transposed_shape = [x.shape[1]] + [x.shape[0]] + list(x.shape[2:])
-    kernel = kernel.contiguous().view(transposed_shape)
-    kernel = kernel.transpose(0, 1)
-    return kernel
-
-
 class Block(nn.Module):
     def __init__(self, n_feats, kernel_size, wn, act=nn.ReLU(True), res_scale=1):
         super(Block, self).__init__()
@@ -115,16 +101,9 @@ class Block(nn.Module):
         res += x
         return res
 
-class ICNRUpsample(nn.Module):
-    def __init__(self,nf_in, nf_out, kernel_size, scale, wn):
-        super().__init__()
-        conv_shuffle = nn.Conv2d(nf_in, nf_out, kernel_size, padding=kernel_size//2)
-        kernel = icnr(conv_shuffle.weight, scale=scale)
-        conv_shuffle.weight.data.copy_(kernel);
-        self.features = nn.Sequential(*[wn(conv_shuffle), nn.PixelShuffle(scale)])
 
-    def forward(self, x):
-        return self.features(x)
+
+
 
 class WDSR(nn.Module):
     def __init__(self, scale, n_resblocks, n_feats, res_scale, n_colors_in=3, n_colors_out=1):
@@ -155,18 +134,19 @@ class WDSR(nn.Module):
         #tail.append(wn(nn.Conv2d(n_feats, n_colors_out, kernel_size, padding=kernel_size//2)))
 
 
-        out_feats = scale*scale*n_colors_out
-        tail.append(ICNRUpsample(n_feats, out_feats, kernel_size, scale, wn))
+        tail.append(PixelShuffle_ICNR(n_feats, n_colors_out, scale, blur=True))
 
         skip = []
         skip.append(wn(nn.Conv2d(n_colors_in, n_colors_out, kernel_size, padding=kernel_size//2)))
-        skip.append(ICNRUpsample(n_colors_out, out_feats, 5, scale, wn))
+        skip.append(PixelShuffle_ICNR(n_colors_in, n_colors_out, scale, blur=True))
 
         # make object members
         self.head = nn.Sequential(*head)
         self.body = nn.Sequential(*body)
         self.tail = nn.Sequential(*tail)
         self.skip = nn.Sequential(*skip)
+        self.pad = nn.ReplicationPad2d((1,0,1,0))
+        self.blur = nn.AvgPool2d(2, stride=1)
 
     def forward(self, x):
         #mean = self.rgb_mean.to(x)
@@ -178,6 +158,7 @@ class WDSR(nn.Module):
         x = self.body(x)
         x = self.tail(x)
         x += s
+        x = self.blur(self.pad(x))
         # x = x*std + mean
 
         return x

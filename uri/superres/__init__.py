@@ -198,20 +198,20 @@ def get_data(src, bs, sz_lr, sz_hr, num_workers=12, test_folder=None, **kwargs):
 
 
 def build_learner(model, bs, lr_sz, sz_hr, src, tfms=None, loss=F.mse_loss,
-                  save=None, callback_fns=None, test_folder=None, **kwargs):
+                  save=None, callback_fns=None, test_folder=None, model_dir='models', **kwargs):
     data = get_data(src, bs, lr_sz, sz_hr, test_folder=test_folder, **kwargs)
     if callback_fns is None: callback_fns = []
     if save: callback_fns.append(partial(SaveModelCallback, name=f'{save}_best'))
-    learn = Learner(data, model, loss_func=loss, metrics=superres_metrics, callback_fns=callback_fns)
+    learn = Learner(data, model, loss_func=loss, metrics=superres_metrics, callback_fns=callback_fns, model_dir=model_dir)
     return learn
 
 
 def batch_learn(model, bs, lr_sz, hr_sz, lr, epochs, src,
                 tfms=None, load=None, save=None, plot=True,
-                loss=F.mse_loss, callback_fns=None, test_folder=None, **kwargs):
+                loss=F.mse_loss, callback_fns=None, test_folder=None, model_dir='models', **kwargs):
     learn = build_learner(model, bs, lr_sz, hr_sz, src, tfms=tfms, loss=loss,
                           save=save, callback_fns=callback_fns,
-                          test_folder=test_folder, **kwargs)
+                          test_folder=test_folder, model_dir=model_dir, **kwargs)
     if load:
         print(f'load: {load}')
         learn = learn.load(load)

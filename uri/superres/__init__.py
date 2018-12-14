@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import math
 from fastai import Iterator, MSELossFlat, partial, Learner, tensor
 from fastai.vision import ImageItemList, Image, pil2tensor, get_transforms
+from fastai.vision.image import TfmPixel
 from fastai.layers import Lambda, PixelShuffle_ICNR
 from fastai.callbacks import SaveModelCallback
 import PIL
@@ -188,9 +189,20 @@ superres_metrics = [F.mse_loss, ssim.ssim, psnr]
 class GrayImageItemList(ImageItemList):
     def open(self, fn): return open_grayscale(fn)
 
+
+def _gaussian_noise(x, gauss_sigma=1.):
+    noise = torch.zeros_like(x)
+    noise.normal_(0, gauss_sigma)
+    x = np.maximum(0,x+noise)
+    return x
+
+gaussian_noise = TfmPixel(_gaussian_noise)
+
 def get_data(src, bs, sz_lr, sz_hr, num_workers=12, test_folder=None, **kwargs):
-    tfms = get_transforms(flip_vert=True)
-    src = src.transform(tfms, size=sz_lr).transform_y(size=sz_hr)
+    tfms = get_transforms(flip_vert=True, max_zoom=0)
+    y_tfms = [[t for t in tfms[0]], [t for t in tfms[1]]]
+    tfms[0].append(gaussian_noise(gauss_sigma=0.05))
+    src = src.transform(tfms, size=sz_lr).transform_y(y_tfms, size=sz_hr)
     if test_folder:
         src = src.add_test_folder(test_folder, label=test_label)
     data = src.databunch(bs=bs, num_workers=num_workers, **kwargs)

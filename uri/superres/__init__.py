@@ -202,7 +202,7 @@ gaussian_noise = TfmPixel(_gaussian_noise)
 def get_data(src, bs, sz_lr, sz_hr, num_workers=12, test_folder=None, **kwargs):
     tfms = get_transforms(flip_vert=True, max_zoom=0)
     y_tfms = [[t for t in tfms[0]], [t for t in tfms[1]]]
-    tfms[0].append(gaussian_noise(gauss_sigma=0.05))
+    tfms[0].append(gaussian_noise(gauss_sigma=0.35))
     src = src.transform(tfms, size=sz_lr).transform_y(y_tfms, size=sz_hr)
     if test_folder:
         src = src.add_test_folder(test_folder, label=test_label)

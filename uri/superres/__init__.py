@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from fastai import Iterator, MSELossFlat, partial, Learner, tensor
+from fastai.basics import Iterator, MSELossFlat, partial, Learner, tensor
 from fastai.vision import ImageItemList, Image, pil2tensor, get_transforms
 from fastai.vision.image import TfmPixel
 from fastai.layers import Lambda, PixelShuffle_ICNR
@@ -10,6 +10,7 @@ from fastai.callbacks import SaveModelCallback
 import PIL
 import numpy as np
 import pytorch_ssim as ssim
+import czifile
 from .dbpn_v1 import Net as DBPNLL
 
 def conv(ni, nf, kernel_size=3, actn=True):
@@ -233,3 +234,15 @@ def batch_learn(model, bs, lr_sz, hr_sz, lr, epochs, src,
         learn.save(save)
     if plot: learn.recorder.plot_losses()
     return learn
+
+def get_czi_shape_info(czi):
+    shape = czi.shape
+    axes = czi.axes
+    axes_dict = {axis:idx for idx,axis in enumerate(czi.axes)}
+    shape_dict = {axis:shape[axes_dict[axis]] for axis in czi.axes}
+    return axes_dict, shape_dict
+
+
+def build_index(axes, ix_select):
+    idx = [ix_select.get(ax, 0) for ax in axes]
+    return tuple(idx)

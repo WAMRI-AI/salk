@@ -1,6 +1,7 @@
 from pathlib import Path
 import shutil
 import random
+import os
 
 data_path = Path('/scratch/bpho')
 sources = data_path/'datasources'
@@ -14,7 +15,7 @@ valid = movies_001/'valid'
 test = movies_001/'test'
 
 if movies_001.exists(): shutil.rmtree(movies_001)
-for fld in [train, valid, test]: fld.mkdir(parents=True)
+for fld in [train, valid, test]: fld.mkdir(parents=True, mode=0o777)
 
 two_channel = list(src_1.glob('*MTGreen*.czi'))
 one_channel = [x for x in src_1.glob('*.czi') if x not in two_channel]
@@ -41,3 +42,9 @@ for x in train_files: shutil.copy(x, train/x.name)
 for x in valid_files: shutil.copy(x, valid/x.name)
 for x in test_files: shutil.copy(x, test/x.name)
 
+for root, dirs, files in os.walk(movies_001):
+    os.chmod(root, 0o777)
+    for d in dirs:
+        os.chmod(os.path.join(root, d), 0o777)
+    for f in files:
+        os.chmod(os.path.join(root, f), 0o666)

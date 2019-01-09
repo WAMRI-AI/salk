@@ -199,7 +199,7 @@ def _gaussian_noise(x, gauss_sigma=1.):
 
 gaussian_noise = TfmPixel(_gaussian_noise)
 
-def get_data(src, bs, sz_lr, sz_hr, noise=0.35, num_workers=12, test_folder=None, **kwargs):
+def get_data(src, bs, sz_lr, sz_hr, noise=0.05, num_workers=12, test_folder=None, **kwargs):
     tfms = get_transforms(flip_vert=True, max_zoom=0)
     y_tfms = [[t for t in tfms[0]], [t for t in tfms[1]]]
     tfms[0].append(gaussian_noise(gauss_sigma=noise))
@@ -210,19 +210,21 @@ def get_data(src, bs, sz_lr, sz_hr, noise=0.35, num_workers=12, test_folder=None
     return data
 
 
-def build_learner(model, bs, lr_sz, sz_hr, src, tfms=None, loss=F.mse_loss,
+def build_learner(model, bs, lr_sz, sz_hr, src, fp16=False, tfms=None, loss=F.mse_loss,
                   save=None, callback_fns=None, test_folder=None, model_dir='models', **kwargs):
     data = get_data(src, bs, lr_sz, sz_hr, test_folder=test_folder, **kwargs)
     if callback_fns is None: callback_fns = []
     if save: callback_fns.append(partial(SaveModelCallback, name=f'{save}_best'))
     learn = Learner(data, model, loss_func=loss, metrics=superres_metrics, callback_fns=callback_fns, model_dir=model_dir)
+    if fp16:
+        learn = learn.to_fp16()
     return learn
 
 
 def batch_learn(model, bs, lr_sz, hr_sz, lr, epochs, src,
-                tfms=None, load=None, save=None, plot=True,
+                fp16 = False, tfms=None, load=None, save=None, plot=True,
                 loss=F.mse_loss, callback_fns=None, test_folder=None, model_dir='models', **kwargs):
-    learn = build_learner(model, bs, lr_sz, hr_sz, src, tfms=tfms, loss=loss,
+    learn = build_learner(model, bs, lr_sz, hr_sz, src, fp16=fp16, tfms=tfms, loss=loss,
                           save=save, callback_fns=callback_fns,
                           test_folder=test_folder, model_dir=model_dir, **kwargs)
     if load:

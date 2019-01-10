@@ -2,6 +2,8 @@ from pathlib import Path
 import shutil
 import random
 import os
+import helpers
+from fastprogress import progress_bar
 
 data_path = Path('/scratch/bpho')
 sources = data_path/'datasources'
@@ -42,9 +44,25 @@ for x in train_files: shutil.copy(x, train/x.name)
 for x in valid_files: shutil.copy(x, valid/x.name)
 for x in test_files: shutil.copy(x, test/x.name)
 
-for root, dirs, files in os.walk(movies_001):
-    os.chmod(root, 0o777)
-    for d in dirs:
-        os.chmod(os.path.join(root, d), 0o777)
-    for f in files:
-        os.chmod(os.path.join(root, f), 0o666)
+train_files = progress_bar(list(train.iterdir()))
+valid_files = progress_bar(list(valid.iterdir()))
+
+size=64
+hr_ROI = movies_001/'roi_hr_64'
+lr_ROI = movies_001/'roi_lr_64'
+
+for fn in train_files:
+ helpers.czi_to_tiles(fn, hr_ROI/'train', lr_ROI/'train', size=size, channels=1)
+for fn in valid_files:
+ helpers.czi_to_tiles(fn, hr_ROI/'valid', lr_ROI/'valid', size=size, channels=1)
+
+size=128
+hr_ROI = movies_001/'roi_hr_128'
+lr_ROI = movies_001/'roi_lr_128'
+
+for fn in train_files:
+ helpers.czi_to_tiles(fn, hr_ROI/'train', lr_ROI/'train', size=size, channels=1)
+for fn in valid_files:
+ helpers.czi_to_tiles(fn, hr_ROI/'valid', lr_ROI/'valid', size=size, channels=1)
+
+helpers.chmod_all_readwrite(movies_001)

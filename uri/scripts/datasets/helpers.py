@@ -43,7 +43,7 @@ def czi_to_tiles(czi_fn, hr_ROI_dir, lr_ROI_dir, size=256, channels=None, depths
                 for time_col in range(times):
                     idx = build_index(proc_axes, {'T': time_col, 'C': channel, 'Z':depth, 'X':slice(0,x),'Y':slice(0,y)})
                     img = data[idx].astype(np.float)
-                    if img_max is None: img_max = img.max() * 2.
+                    if img_max is None: img_max = img.max() * 1.5
                     img /= img_max
                     pimg = PIL.Image.fromarray((img*255).astype(np.uint8), mode='L')
                     rc = vision.transforms.RandomCrop([size, size])
@@ -57,7 +57,7 @@ def czi_to_tiles(czi_fn, hr_ROI_dir, lr_ROI_dir, size=256, channels=None, depths
                         save_fn = hr_ROI_dir/f'{czi_fn.stem}_{channel:02d}_{depth:03d}_{time_col:03d}_{count:02d}.tif' #add sample number.
                         ROI = rc(pimg)
                         ROI_stats = PIL.ImageStat.Stat(ROI)
-                        if ROI_stats.stddev[0]>10:
+                        if ROI_stats.stddev[0]>5:
                             count = count+1
                             ROI.save(save_fn)
                             cur_size = ROI.size

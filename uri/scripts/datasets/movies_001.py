@@ -5,7 +5,7 @@ import os
 import helpers
 from fastprogress import progress_bar
 
-data_path = Path('/DATA/WAMRI/salk/uri/bpho')
+data_path = Path('/scratch/bpho')
 sources = data_path/'datasources'
 src_1 = sources/'live_neuron_mito_timelapse_for_deep_learning'
 src_2 = sources/'MitoTracker_Red_FM_movie_data'

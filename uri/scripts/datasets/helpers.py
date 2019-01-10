@@ -43,7 +43,7 @@ def czi_to_tiles(czi_fn, hr_ROI_dir, lr_ROI_dir, size=256, channels=None, depths
                 for time_col in range(times):
                     idx = build_index(proc_axes, {'T': time_col, 'C': channel, 'Z':depth, 'X':slice(0,x),'Y':slice(0,y)})
                     img = data[idx].astype(np.float)
-                    if img_max is None: img_max = img.max() / 2.
+                    if img_max is None: img_max = img.max() * 2.
                     img /= img_max
                     pimg = PIL.Image.fromarray((img*255).astype(np.uint8), mode='L')
                     rc = vision.transforms.RandomCrop([size, size])

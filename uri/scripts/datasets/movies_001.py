@@ -47,22 +47,17 @@ for x in test_files: shutil.copy(x, test/x.name)
 train_files = progress_bar(list(train.iterdir()))
 valid_files = progress_bar(list(valid.iterdir()))
 
-size=64
-hr_ROI = movies_001/'roi_hr_64'
-lr_ROI = movies_001/'roi_lr_64'
 
-for fn in train_files:
- helpers.czi_to_tiles(fn, hr_ROI/'train', lr_ROI/'train', size=size, channels=1)
-for fn in valid_files:
- helpers.czi_to_tiles(fn, hr_ROI/'valid', lr_ROI/'valid', size=size, channels=1)
 
-size=128
-hr_ROI = movies_001/'roi_hr_128'
-lr_ROI = movies_001/'roi_lr_128'
+def save_tiles(tile_size):
+    hr_ROI = movies_001/f'roi_hr_{tile_size}'
+    lr_ROI = movies_001/f'roi_lr_{tile_size}'
+    lr_ROI_small = movies_001/f'roi_lr_small_{tile_size}'
 
-for fn in train_files:
- helpers.czi_to_tiles(fn, hr_ROI/'train', lr_ROI/'train', size=size, channels=1)
-for fn in valid_files:
- helpers.czi_to_tiles(fn, hr_ROI/'valid', lr_ROI/'valid', size=size, channels=1)
+    for fn in train_files:
+        helpers.czi_to_tiles(fn, hr_ROI/'train', lr_ROI/'train', lr_ROI_small/'train', size=tile_size, channels=1)
+    for fn in valid_files:
+        helpers.czi_to_tiles(fn, hr_ROI/'valid', lr_ROI/'valid', lr_ROI_small/'valid', size=tile_size, channels=1)
 
+for sz in [64,128,256,512]: save_tiles(sz)
 helpers.chmod_all_readwrite(movies_001)

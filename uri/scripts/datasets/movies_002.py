@@ -58,9 +58,10 @@ def save_tiles(tile_size):
 
 img_hr = movies_002/'img_hr'
 img_lr = movies_002/'img_lr'
+img_lr_small = movies_002/'img_lr_small'
 print('save tiffs')
-for fn in train_files: helpers.czi_to_tiffs(fn,img_hr/'train',img_lr/'train', max_scale=1.05, max_per_movie=False)
-for fn in valid_files: helpers.czi_to_tiffs(fn,img_hr/'valid',img_lr/'valid', max_scale=1.05, max_per_movie=False)
+for fn in train_files: helpers.czi_to_tiffs(fn,img_hr/'train',img_lr/'train', img_lr_small/'train', max_scale=1.05, max_per_movie=False)
+for fn in valid_files: helpers.czi_to_tiffs(fn,img_hr/'valid',img_lr/'valid', img_lr_small/'valid', max_scale=1.05, max_per_movie=False)
 
 for sz in [64,128,256,512]: save_tiles(sz)
 

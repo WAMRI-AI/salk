@@ -71,10 +71,11 @@ def czi_to_tiles(czi_fn, hr_ROI_dir, lr_ROI_dir, lr_ROI_small_dir,
 
                     if not max_per_movie: img_max = None
 
-def czi_to_tiffs(czi_fn, hr_dir, lr_dir, channels=None, depths=None, max_scale=1.5, max_per_movie=True):
-    hr_dir, lr_dir = Path(hr_dir), Path(lr_dir)
+def czi_to_tiffs(czi_fn, hr_dir, lr_dir, lr_small_dir, channels=None, depths=None, max_scale=1.5, max_per_movie=True):
+    hr_dir, lr_dir, lr_small_dir = Path(hr_dir), Path(lr_dir), Path(lr_small_dir)
     hr_dir.mkdir(parents=True, exist_ok=True)
     lr_dir.mkdir(parents=True, exist_ok=True)
+    lr_small_dir.mkdir(parents=True, exist_ok=True)
     with czifile.CziFile(czi_fn) as czi_f:
         proc_axes, proc_shape = get_czi_shape_info(czi_f)
         if channels is None: channels = proc_shape['C']
@@ -97,4 +98,6 @@ def czi_to_tiffs(czi_fn, hr_dir, lr_dir, channels=None, depths=None, max_scale=1
                     cur_size = pimg.size
                     new_size = (cur_size[0]//4, cur_size[1]//4)
                     small_img = pimg.resize(new_size, resample=PIL.Image.BICUBIC)
-                    small_img.save(lr_dir/save_fn)
+                    big_img = small_img.resize(cur_size, resample=PIL.Image.BICUBIC)
+                    small_img.save(lr_small_dir/save_fn)
+                    big_img.save(lr_dir/save_fn)

@@ -69,7 +69,7 @@ def scale_tif_files(file_map, dest_dir, scale=4):
         big_img = img.resize(new_size, resample=PIL.Image.BICUBIC)
         big_img.save(dest/new_fn)
 
-def save_tiles(tile_size, num_tiles=5, scale=4, max_scale=1.05):
+def save_tiles(tile_size, num_tiles=5, scale=4, threshold=0.85):
     print(f'\n\nsave {tile_size} tiles')
     hr_ROI = paired_001/f'roi_hr_{tile_size}'
     lr_ROI = paired_001/f'roi_lr_{tile_size}'
@@ -81,10 +81,10 @@ def save_tiles(tile_size, num_tiles=5, scale=4, max_scale=1.05):
         else: sub_dir = 'valid'
         base_name = f'{tile_size}_{id}_{depth}.tif'
         helpers.tif_to_tiles(lr_fn, hr_fn, base_name, hr_ROI/sub_dir, lr_ROI/sub_dir, lr_ROI_small/sub_dir, 
-                             size=tile_size, num_tiles=num_tiles, scale=scale, max_scale=max_scale)
+                             size=tile_size, num_tiles=num_tiles, scale=scale, threshold=threshold)
 
 
-for tile_size in [64,128,256,512]:
+for tile_size in [128,256,512,1024]:
     save_tiles(tile_size)
 
 print('\n\nsave scaled up tifs')

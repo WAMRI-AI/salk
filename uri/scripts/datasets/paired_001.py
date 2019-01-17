@@ -69,11 +69,11 @@ def scale_tif_files(file_map, dest_dir, scale=4):
         big_img = img.resize(new_size, resample=PIL.Image.BICUBIC)
         big_img.save(dest/new_fn)
 
-def save_tiles(tile_size, num_tiles=5, scale=4, threshold=0.85):
+def save_tiles(tile_size, num_tiles=5, scale=4, threshold=180):
     print(f'\n\nsave {tile_size} tiles')
     hr_ROI = paired_001/f'roi_hr_{tile_size}'
     lr_ROI = paired_001/f'roi_lr_{tile_size}'
-    lr_ROI_small = paired_001/f'roi_lr_small_{tile_size}'
+    lr_ROI_small = paired_001/f'roi_lr_up_{tile_size}'
 
     for (id, depth), hr_fn in progress_bar(list(hr_file_map.items())):
         lr_fn = lr_file_map[(id, depth)]

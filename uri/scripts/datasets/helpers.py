@@ -128,6 +128,7 @@ def scale_tif_files(file_map, dest_dir, scale=4):
 def random_crop_tile(base_name, hr_img, lr_img, tile_size, scale, threshold):
     try:
         hr_crop = None
+        tries = 0
         while hr_crop is None:
             w, h = hr_img.size
             th, tw = tile_size, tile_size
@@ -136,8 +137,11 @@ def random_crop_tile(base_name, hr_img, lr_img, tile_size, scale, threshold):
             crop_rect = (j, i, j + tw, i + th) 
             small_crop_rect = [i//scale for i in crop_rect]
             hr_crop = hr_img.crop(crop_rect)
-            if np.asarray(hr_crop).max() < threshold: hr_crop = None
-        
+            if (np.asarray(hr_crop) > threshold).mean() < 0.05: hr_crop = None
+            tries += 1
+            if tries > 10:
+                threshold /= 2
+                tries = 0
         lr_crop = lr_img.crop(small_crop_rect)
         lr_crop_upsampled = lr_img.resize(hr_img.size, resample=PIL.Image.BICUBIC).crop(crop_rect)
         return hr_crop, lr_crop, lr_crop_upsampled
@@ -145,12 +149,12 @@ def random_crop_tile(base_name, hr_img, lr_img, tile_size, scale, threshold):
         print(base_name, e)
         import pdb; pdb.set_trace()
 
-def tif_to_tiles(lr_tif_fn, hr_tif_fn, base_name, hr_ROI_dir, lr_ROI_dir, lr_ROI_small_dir,
+def tif_to_tiles(lr_tif_fn, hr_tif_fn, base_name, hr_ROI_dir, lr_ROI_dir, lr_ROI_up_dir,
                  size=256, num_tiles=5, scale=4, threshold=0.85):
-    hr_ROI_dir, lr_ROI_dir, lr_ROI_small_dir= Path(hr_ROI_dir), Path(lr_ROI_dir), Path(lr_ROI_small_dir)
+    hr_ROI_dir, lr_ROI_dir, lr_ROI_up_dir= Path(hr_ROI_dir), Path(lr_ROI_dir), Path(lr_ROI_up_dir)
     hr_ROI_dir.mkdir(parents=True, exist_ok=True)
     lr_ROI_dir.mkdir(parents=True, exist_ok=True)
-    lr_ROI_small_dir.mkdir(parents=True, exist_ok=True)
+    lr_ROI_up_dir.mkdir(parents=True, exist_ok=True)
 
     hr_img = PIL.Image.open(hr_tif_fn)
     lr_img = PIL.Image.open(lr_tif_fn)
@@ -161,4 +165,4 @@ def tif_to_tiles(lr_tif_fn, hr_tif_fn, base_name, hr_ROI_dir, lr_ROI_dir, lr_ROI
         count = count+1
         HR_ROI.save(hr_ROI_dir/save_name)
         LR_ROI.save(lr_ROI_dir/save_name)
-        LR_ROI_Upsample.save(lr_ROI_small_dir/save_name)
+        LR_ROI_Upsample.save(lr_ROI_up_dir/save_name)

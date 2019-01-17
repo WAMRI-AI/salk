@@ -4,6 +4,7 @@ import PIL
 import numpy as np
 import torchvision as vision
 from pathlib import Path
+import random
 
 def chmod_all_readwrite(dirname):
     for root, dirs, files in os.walk(dirname):
@@ -101,3 +102,57 @@ def czi_to_tiffs(czi_fn, hr_dir, lr_dir, lr_small_dir, channels=None, depths=Non
                     big_img = small_img.resize(cur_size, resample=PIL.Image.BICUBIC)
                     small_img.save(lr_small_dir/save_fn)
                     big_img.save(lr_dir/save_fn)
+
+def copy_tif_files(file_map, dest_dir):
+    for (id, depth), fn in file_map.items():
+        if id in train_ids: dest = dest_dir/'train'
+        else: dest = dest_dir/'valid'
+        new_fn = f'{id}_{depth}.tif'
+        dest.mkdir(parents=True, mode=0o777, exist_ok=True)
+        shutil.copy(fn, dest/new_fn)
+        
+def scale_tif_files(file_map, dest_dir, scale=4):
+    for (id, depth), fn in file_map.items():
+        if id in train_ids: dest = dest_dir/'train'
+        else: dest = dest_dir/'valid'
+        new_fn = f'{id}_{depth}.tif'
+        dest.mkdir(parents=True, mode=0o777, exist_ok=True)
+        img = PIL.Image.open(fn)
+        cur_size = img.size
+        new_size = (cur_size[0]*scale, cur_size[1]*scale)
+        big_img = img.resize(new_size, resample=PIL.Image.BICUBIC)
+        big_img.save(dest/new_fn)
+
+def random_crop_tile(hr_img, lr_img, tile_size, scale):
+    w, h = hr_img.size
+    th, tw = tile_size, tile_size
+    i = random.randint(0, h - th)
+    j = random.randint(0, w - tw)
+    crop_rect = (j, i, j + w, i + h) 
+    small_crop_rect = [i//scale for i in crop_rect]
+    hr_crop = hr_img.crop(crop_rect)
+    lr_crop = lr_img.crop(small_crop_rect)
+    lr_crop_upsampled = lr_img.resize(hr_img.size, resample=PIL.Image.BICUBIC).crop(crop_rect)
+    return hr_crop, lr_crop, lr_crop_upsampled
+
+
+def tif_to_tiles(lr_tif_fn, hr_tif_fn, base_name, hr_ROI_dir, lr_ROI_dir, lr_ROI_small_dir,
+                 size=256, num_tiles=5, scale=4, max_scale=1.5):
+    hr_ROI_dir, lr_ROI_dir, lr_ROI_small_dir= Path(hr_ROI_dir), Path(lr_ROI_dir), Path(lr_ROI_small_dir)
+    hr_ROI_dir.mkdir(parents=True, exist_ok=True)
+    lr_ROI_dir.mkdir(parents=True, exist_ok=True)
+    lr_ROI_small_dir.mkdir(parents=True, exist_ok=True)
+
+    hr_img = PIL.Image.open(hr_tif_fn)
+    lr_img = PIL.Image.open(lr_tif_fn)
+    rc = vision.transforms.RandomCrop([size, size])
+    count = 0
+    while count < num_tiles:
+        save_name = f'{base_name}_{count:02d}.tif'
+        HR_ROI, LR_ROI, LR_ROI_Upsample = random_crop_tile(hr_img, lr_img, size, scale)
+        # ROI_stats = PIL.ImageStat.Stat(HR_ROI)
+        # if ROI_stats.stddev[0]>1:
+        count = count+1
+        HR_ROI.save(hr_ROI_dir/save_name)
+        LR_ROI.save(lr_ROI_dir/save_name)
+        LR_ROI_Upsample.save(lr_ROI_small_dir/save_name)

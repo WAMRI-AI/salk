@@ -2,7 +2,7 @@ from pathlib import Path
 import shutil
 import random
 import os
-import helpers
+import superres.helpers as helpers
 from fastprogress import progress_bar
 import PIL
 

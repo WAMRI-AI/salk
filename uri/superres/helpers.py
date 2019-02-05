@@ -13,7 +13,7 @@ from fastai.callbacks import *
 from torchvision.models import vgg16_bn
 import sys
 from superres import FeatureLoss
-
+import imageio
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 

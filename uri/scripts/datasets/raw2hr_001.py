@@ -57,7 +57,8 @@ def pull_raw_tiffs(fn, raw_dir, max_ratio=1.05, base_name=None, mbar=None):
             pimg = PIL.Image.fromarray(np.uint8(img*255))
             save_name = f'{base_name}_{tidx:04d}.tif'
             pimg.save(raw_dir/save_name)
-            
+
+
 def pull_proc_tiffs(fn, proc_dir, max_ratio=1.05, base_name=None, mbar=None):
     if base_name is None: base_name = fn.stem
     with czifile.CziFile(fn) as czi_f:
@@ -107,7 +108,6 @@ def tif_to_tiles_no_upsample(
     hr_ROI_dir, lr_ROI_dir = Path(hr_ROI_dir), Path(lr_ROI_dir)
     hr_ROI_dir.mkdir(parents=True, exist_ok=True)
     lr_ROI_dir.mkdir(parents=True, exist_ok=True)
-    
 
     hr_img = PIL.Image.open(hr_tif_fn)
     lr_img = PIL.Image.open(lr_tif_fn)
@@ -118,13 +118,12 @@ def tif_to_tiles_no_upsample(
         count = count+1
         HR_ROI.save(hr_ROI_dir/save_name)
         LR_ROI.save(lr_ROI_dir/save_name)
-        
 
 def get_sub_dir(fn): 
     key = fn.stem.split('_')[0]
     if key in validation_files: return 'valid'
     else: return 'train'
-    
+
 def save_tiles(tile_size, num_tiles=5, threshold=25, mbar=None):
     print(f'\n\nsave {tile_size} tiles')
     hr_ROI = raw2hr/f'roi_hr_{tile_size}'
@@ -133,9 +132,9 @@ def save_tiles(tile_size, num_tiles=5, threshold=25, mbar=None):
     for raw_fn in progress_bar(list(raw_tiffs.iterdir()), parent=mbar):
         proc_fn = proc_tiffs/raw_fn.name
         sub_dir = get_sub_dir(raw_fn)
-        base_name = f'{raw_fn.stem}_{tile_size}.tif'
+        base_name = f'{raw_fn.stem}_{tile_size}'
         tif_to_tiles_no_upsample(
-            proc_fn, raw_fn, base_name, hr_ROI/sub_dir, lr_ROI/sub_dir,
+            raw_fn, proc_fn, base_name, hr_ROI/sub_dir, lr_ROI/sub_dir,
             size=tile_size, num_tiles=num_tiles, threshold=threshold)
 
 mbar = master_bar([128,256,512,768])

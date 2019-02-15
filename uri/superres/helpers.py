@@ -12,7 +12,7 @@ from fastai.vision import *
 from fastai.callbacks import *
 from torchvision.models import vgg16_bn
 import sys
-from superres import FeatureLoss
+from superres import FeatureLoss, micro_crappify
 import imageio
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -39,7 +39,6 @@ def build_index(axes, ix_select):
 
 def czi_to_tiles(czi_fn, hr_ROI_dir, lr_ROI_dir, lr_ROI_small_dir,
                  size=256, channels=None, depths=None, num_tiles=5, scale=4, max_scale=1.5, max_per_movie=True):
-    #import pdb; pdb.set_trace()
     hr_ROI_dir, lr_ROI_dir, lr_ROI_small_dir= Path(hr_ROI_dir), Path(lr_ROI_dir), Path(lr_ROI_small_dir)
     hr_ROI_dir.mkdir(parents=True, exist_ok=True)
     lr_ROI_dir.mkdir(parents=True, exist_ok=True)
@@ -113,6 +112,7 @@ def czi_to_tiffs(czi_fn, hr_dir, lr_dir, lr_small_dir, channels=None, depths=Non
                     big_img = small_img.resize(cur_size, resample=PIL.Image.BICUBIC)
                     small_img.save(lr_small_dir/save_fn)
                     big_img.save(lr_dir/save_fn)
+
 
 def copy_tif_files(file_map, dest_dir):
     for (id, depth), fn in file_map.items():
@@ -215,6 +215,44 @@ def build_crappify_model(model_path, model, bs, img_size):
     gc.collect()
     learn = learn.load(model_name)
     return learn
+
+
+
+def algo_crappify_movie_to_tifs(czi_fn, hr_dir, lr_dir, lr_up_dir, base_name, model_path, model_name, max_scale=1.1, max_per_movie=True):
+    learn = load_learner(model_path, model_name)
+    hr_dir, lr_dir, lr_up_dir = Path(hr_dir), Path(lr_dir), Path(lr_up_dir)
+    hr_dir.mkdir(parents=True, exist_ok=True)
+    lr_dir.mkdir(parents=True, exist_ok=True)
+    lr_up_dir.mkdir(parents=True, exist_ok=True)
+    with czifile.CziFile(czi_fn) as czi_f:
+        proc_axes, proc_shape = get_czi_shape_info(czi_f)
+        channels = proc_shape['C']
+        depths = proc_shape['Z']
+        times = proc_shape['T']
+        x,y = proc_shape['X'], proc_shape['Y']
+        data = czi_f.asarray()
+        for channel in range(channels):
+            for depth in range(depths):
+                img_max = None
+                for time_col in range(times):
+                    idx = build_index(proc_axes, {'T': time_col, 'C': channel, 'Z':depth, 'X':slice(0,x),'Y':slice(0,y)})
+                    img = data[idx].astype(np.float)
+                    save_fn = f'{base_name}_{channel:02d}_{depth:03d}_{time_col:03d}.tif'
+                    if img_max is None: img_max = img.max() * max_scale
+                    img /= img_max
+                    if not max_per_movie: img_max = None
+                    img_data = (img*255).astype(float)
+
+                    pimg = PIL.Image.fromarray(img_data.astype(np.uint8), mode='L')
+                    cur_size = pimg.size
+                    pimg.save(hr_dir/save_fn)
+
+                    down_img, down_up_img = micro_crappify(img_data)
+                    small_img = PIL.Image.fromarray(down_img.astype(np.uint8))
+                    big_img = PIL.Image.fromarray(down_up_img.astype(np.uint8))
+                    small_img.save(lr_dir/save_fn)
+                    big_img.save(lr_up_dir/save_fn)
+
 
 
 def crappify_movie_to_tifs(czi_fn, hr_dir, lr_dir, lr_up_dir, base_name, model_path, model_name, max_scale=1.1, max_per_movie=True):

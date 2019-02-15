@@ -14,6 +14,7 @@ import pytorch_ssim as ssim
 import czifile
 from .dbpn_v1 import Net as DBPNLL
 from torchvision.models import vgg16_bn
+from scipy.ndimage.interpolation import zoom
 
 def conv(ni, nf, kernel_size=3, actn=True):
     layers = [nn.Conv2d(ni, nf, kernel_size, padding=kernel_size//2)]
@@ -260,11 +261,11 @@ vgg_m = vgg16_bn(True).features.cuda().eval()
 requires_grad(vgg_m, False)
 blocks = [i-1 for i,o in enumerate(children(vgg_m)) if isinstance(o,nn.MaxPool2d)]
 
-base_loss = F.l1_loss
 
 class FeatureLoss(nn.Module):
-    def __init__(self, m_feat, layer_ids, layer_wgts):
+    def __init__(self, m_feat, layer_ids, layer_wgts, base_loss=F.l1_loss):
         super().__init__()
+        self.base_loss = base_loss
         self.m_feat = m_feat
         self.loss_features = [self.m_feat[i] for i in layer_ids]
         self.hooks = hook_outputs(self.loss_features, detach=False)
@@ -277,6 +278,7 @@ class FeatureLoss(nn.Module):
         return [(o.clone() if clone else o) for o in self.hooks.stored]
 
     def forward(self, input, target):
+        base_loss = self.base_loss
         out_feat = self.make_features(target, clone=True)
         in_feat = self.make_features(input)
         self.feat_losses = [base_loss(input,target)]
@@ -289,3 +291,12 @@ class FeatureLoss(nn.Module):
     def __del__(self): self.hooks.remove()
 
 feat_loss = FeatureLoss(vgg_m, blocks[2:5], [5,15,2])
+
+
+def micro_crappify(data, gauss_sigma = 20, scale=4, order=1):
+    x = np.random.poisson(np.maximum(0,data).astype(np.int))
+    noise = np.random.normal(0,gauss_sigma,size=x.shape).astype(np.float32)
+    x = np.maximum(0,x+noise)
+    x_down = zoom(x, 1/scale, order=0)
+    x_down_up = zoom(x_down, scale, order=order)
+    return x_down, x_down_up

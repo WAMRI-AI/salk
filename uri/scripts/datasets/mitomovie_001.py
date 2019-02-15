@@ -11,6 +11,7 @@ model_name = 'paired_001_unet_lr2hr.3.pkl'
 sources = data_path/'datasources'
 mito_movies = sources/'MitoTracker_Red_FM_movie_data'
 hr_mito_movies = list(mito_movies.glob('*920*.czi'))
+lr_mito_movies = list(mito_movies.glob('*230*.czi'))
 
 datasets = data_path/'datasets'
 mitomovies_001 = datasets/'mitomovies_001'
@@ -30,10 +31,13 @@ for movie_fn in progress_bar(hr_mito_movies):
     hr_dir = mitomovies_001/'hr'/subdir
     lr_dir = mitomovies_001/'lr'/subdir
     lr_up_dir = mitomovies_001/'lr_up'/subdir
+
     base_name = movie_fn.stem
     for fld in [hr_dir, lr_dir, lr_up_dir]: fld.mkdir(parents=True, exist_ok=True, mode=0o775)
-    helpers.crappify_movie_to_tifs(movie_fn, hr_dir, lr_dir, lr_up_dir,
-                                   base_name, model_path, model_name, max_scale=1.05, max_per_movie=False)
+    helpers.algo_crappify_movie_to_tifs(
+                movie_fn, hr_dir, lr_dir, lr_up_dir,
+                base_name, model_path, model_name, max_scale=1.05, max_per_movie=False)
+
 
     for tile_size in [128,256,512]:
         hr_ROI = mitomovies_001/f'roi_hr_{tile_size}'/subdir
@@ -47,3 +51,7 @@ for movie_fn in progress_bar(hr_mito_movies):
                                  num_tiles=num_tiles, scale=scale, threshold=threshold)
 
 
+test_dir = mitomovies_001/'test'
+test_dir.mkdir(parents=True, exist_ok=True, mode=0o775)
+for movie_fn in progress_bar(lr_mito_movies):
+    shutil.copy(movie_fn, test_dir/movie_fn.name)

@@ -17,3 +17,5 @@ __pycache__/
 *.tiff
 *.mp4
 models/
+
+.vscode

@@ -27,9 +27,9 @@ paired_001_lr_up = paired_001/'lr_up'
 paired_001_hr = paired_001/'hr'
 
 # ensure the paired_001 dataset already created
-if (paired_001_lr.exists() and 
-    paired_001_hr.exists() and 
-    paired_001_lr.exists() and 
+if (paired_001_lr.exists() and
+    paired_001_hr.exists() and
+    paired_001_lr.exists() and
     paired_001_lr_up.exists()):
     # copy the hr and lr tiffs
     shutil.copytree(paired_001_hr, hr_tifs)

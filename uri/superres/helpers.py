@@ -154,7 +154,7 @@ def random_crop_tile(base_name, hr_img, lr_img, tile_size, scale, threshold, unt
                 threshold /= 2
                 tries = 0
             if tries_1e1 > 10:
-                untiled_ls.append(format(base_name+'_ROI_'+tile_size))
+                untiled_ls.append(format(base_name+'_ROI_'+str(tile_size)))
                 flag = -1
                 lr_crop = 0
                 hr_crop = 0

@@ -1,3 +1,4 @@
+#A good example for crappifying mito/neuron/Airyscan_server images
 from pathlib import Path
 import shutil
 import random

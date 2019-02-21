@@ -1,3 +1,4 @@
+#for extracting paired images
 from pathlib import Path
 import shutil
 import random
@@ -43,7 +44,7 @@ train_ids = file_ids[split_idx:]
 
 def build_file_map(src): return  { (pull_id(x),pull_depth(x)):x for x in src.iterdir() }
 
-hr_file_map = build_file_map(src_1_hr)
+hr_file_map = build_file_map(src_1_hr) #map the lr and hr names
 lr_file_map = build_file_map(src_1_lr)
 
 file_map = hr_file_map
@@ -66,7 +67,7 @@ def scale_tif_files(file_map, dest_dir, scale=4):
         img = PIL.Image.open(fn)
         cur_size = img.size
         new_size = (cur_size[0]*scale, cur_size[1]*scale)
-        big_img = img.resize(new_size, resample=PIL.Image.BICUBIC)
+        big_img = img.resize(new_size, resample=PIL.Image.BICUBIC) #can try zoom too.
         big_img.save(dest/new_fn)
 
 def save_tiles(tile_size, num_tiles=5, scale=4, threshold=180):

@@ -134,48 +134,64 @@ def scale_tif_files(file_map, dest_dir, scale=4):
         big_img = img.resize(new_size, resample=PIL.Image.BICUBIC)
         big_img.save(dest/new_fn)
 
-def random_crop_tile(base_name, hr_img, lr_img, tile_size, scale, threshold):
+def random_crop_tile(base_name, hr_img, lr_img, tile_size, scale, threshold, untiled_ls, flag=0):
     try:
         hr_crop = None
         tries = 0
+        tries_1e1 = 0
         while hr_crop is None:
             w, h = hr_img.size
             th, tw = tile_size, tile_size
-            i = random.randint(0, h - th)
-            j = random.randint(0, w - tw)
+            i = random.randint(0, max(0, h - th))
+            j = random.randint(0, max(0, w - tw))
             crop_rect = (j, i, j + tw, i + th) 
             small_crop_rect = [i//scale for i in crop_rect]
             hr_crop = hr_img.crop(crop_rect)
             if (np.asarray(hr_crop) > threshold).mean() < 0.05: hr_crop = None
             tries += 1
             if tries > 10:
+                tries_1e1 += 1
                 threshold /= 2
                 tries = 0
+            if tries_1e1 > 10:
+                untiled_ls.append(format(base_name+'_ROI_'+tile_size))
+                flag = -1
+                lr_crop = 0
+                hr_crop = 0
+                lr_crop_upsampled = 0
+                return hr_crop, lr_crop, lr_crop_upsampled, flag
+                
         lr_crop = lr_img.crop(small_crop_rect)
         lr_crop_upsampled = lr_img.resize(hr_img.size, resample=PIL.Image.BICUBIC).crop(crop_rect)
-        return hr_crop, lr_crop, lr_crop_upsampled
+        return hr_crop, lr_crop, lr_crop_upsampled, flag
     except Exception as e:
         print(base_name, e)
         import pdb; pdb.set_trace()
 
 def tif_to_tiles(lr_tif_fn, hr_tif_fn, base_name, hr_ROI_dir, lr_ROI_dir, lr_ROI_up_dir,
-                 size=256, num_tiles=5, scale=4, threshold=0.85):
-    hr_ROI_dir, lr_ROI_dir, lr_ROI_up_dir= Path(hr_ROI_dir), Path(lr_ROI_dir), Path(lr_ROI_up_dir)
+                 size=256, num_tiles=5, scale=4, threshold=0.85, untiled_ls=[]):
+    hr_ROI_dir, lr_ROI_dir, lr_ROI_up_dir=Path(hr_ROI_dir), Path(lr_ROI_dir), Path(lr_ROI_up_dir)
     hr_ROI_dir.mkdir(parents=True, exist_ok=True)
     lr_ROI_dir.mkdir(parents=True, exist_ok=True)
     lr_ROI_up_dir.mkdir(parents=True, exist_ok=True)
 
     hr_img = PIL.Image.open(hr_tif_fn)
     lr_img = PIL.Image.open(lr_tif_fn)
+   # if np.asarray(hr_img).max() > threshold:
+   #     print('img_max = '+str(np.asarray(hr_img).amax()))
     count = 0
     while count < num_tiles:
         save_name = f'{base_name}_{count:02d}.tif'
-        HR_ROI, LR_ROI, LR_ROI_Upsample = random_crop_tile(base_name, hr_img, lr_img, size, scale, threshold=threshold)
+        HR_ROI, LR_ROI, LR_ROI_Upsample, flag = random_crop_tile(base_name, hr_img, lr_img, size, 
+                                                           scale, threshold=threshold, untiled_ls=untiled_ls)
         count = count+1
+        if flag == -1: break
         HR_ROI.save(hr_ROI_dir/save_name)
         LR_ROI.save(lr_ROI_dir/save_name)
         LR_ROI_Upsample.save(lr_ROI_up_dir/save_name)
-
+   # else:
+   #     untiled_ls.append(format(hr_tif_fn))
+        
 def build_crappify_model(model_path, model, bs, img_size):
     img_data = Path('/scratch/bpho/datasets/paired_001/')
     model_path = Path('/scratch/bpho/models')
@@ -218,8 +234,7 @@ def build_crappify_model(model_path, model, bs, img_size):
 
 
 
-def algo_crappify_movie_to_tifs(czi_fn, hr_dir, lr_dir, lr_up_dir, base_name, model_path, model_name, max_scale=1.1, max_per_movie=True):
-    learn = load_learner(model_path, model_name)
+def algo_crappify_movie_to_tifs(czi_fn, hr_dir, lr_dir, lr_up_dir, base_name, max_scale=1.1, max_per_movie=True):
     hr_dir, lr_dir, lr_up_dir = Path(hr_dir), Path(lr_dir), Path(lr_up_dir)
     hr_dir.mkdir(parents=True, exist_ok=True)
     lr_dir.mkdir(parents=True, exist_ok=True)
@@ -239,7 +254,8 @@ def algo_crappify_movie_to_tifs(czi_fn, hr_dir, lr_dir, lr_up_dir, base_name, mo
                     img = data[idx].astype(np.float)
                     save_fn = f'{base_name}_{channel:02d}_{depth:03d}_{time_col:03d}.tif'
                     if img_max is None: img_max = img.max() * max_scale
-                    img /= img_max
+                    if img_max==0: continue #do not save images with no contents.  
+                    img /= img_max             
                     if not max_per_movie: img_max = None
                     img_data = (img*255).astype(float)
 
@@ -247,7 +263,7 @@ def algo_crappify_movie_to_tifs(czi_fn, hr_dir, lr_dir, lr_up_dir, base_name, mo
                     cur_size = pimg.size
                     pimg.save(hr_dir/save_fn)
 
-                    down_img, down_up_img = micro_crappify(img_data)
+                    down_img, down_up_img = micro_crappify(img_data) #can also check CARE's work, try adding PSF?
                     small_img = PIL.Image.fromarray(down_img.astype(np.uint8))
                     big_img = PIL.Image.fromarray(down_up_img.astype(np.uint8))
                     small_img.save(lr_dir/save_fn)
@@ -270,8 +286,8 @@ def crappify_movie_to_tifs(czi_fn, hr_dir, lr_dir, lr_up_dir, base_name, model_p
         data = czi_f.asarray()
         for channel in range(channels):
             for depth in range(depths):
-                img_max = None
-                for time_col in range(times):
+                img_max = None #used to normalize image data
+                for time_col in range(times): #proc_axes: specify exisiting orders of the axes
                     idx = build_index(proc_axes, {'T': time_col, 'C': channel, 'Z':depth, 'X':slice(0,x),'Y':slice(0,y)})
                     img = data[idx].astype(np.float)
                     save_fn = f'{base_name}_{channel:02d}_{depth:03d}_{time_col:03d}.tif'

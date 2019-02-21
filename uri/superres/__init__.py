@@ -14,7 +14,7 @@ import pytorch_ssim as ssim
 import czifile
 from .dbpn_v1 import Net as DBPNLL
 from torchvision.models import vgg16_bn
-from scipy.ndimage.interpolation import zoom
+from scipy.ndimage.interpolation import zoom #works better than resize_bicubic, can play with it too
 
 def conv(ni, nf, kernel_size=3, actn=True):
     layers = [nn.Conv2d(ni, nf, kernel_size, padding=kernel_size//2)]
@@ -240,7 +240,7 @@ def batch_learn(model, bs, lr_sz, hr_sz, lr, epochs, src,
     if plot: learn.recorder.plot_losses()
     return learn
 
-def get_czi_shape_info(czi):
+def get_czi_shape_info(czi): #return dimension of czi files
     shape = czi.shape
     axes = czi.axes
     axes_dict = {axis:idx for idx,axis in enumerate(czi.axes)}
@@ -248,7 +248,7 @@ def get_czi_shape_info(czi):
     return axes_dict, shape_dict
 
 
-def build_index(axes, ix_select):
+def build_index(axes, ix_select): 
     idx = [ix_select.get(ax, 0) for ax in axes]
     return tuple(idx)
 
@@ -293,7 +293,8 @@ class FeatureLoss(nn.Module):
 feat_loss = FeatureLoss(vgg_m, blocks[2:5], [5,15,2])
 
 
-def micro_crappify(data, gauss_sigma = 20, scale=4, order=1):
+def micro_crappify(data, gauss_sigma = 20, scale=4, order=1): #data: 1 frame; play with sigma?
+    #x = np.random.poisson(np.maximum(0,data).astype(np.int)) #It helps a lot
     x = np.random.poisson(np.maximum(0,data).astype(np.int))
     noise = np.random.normal(0,gauss_sigma,size=x.shape).astype(np.float32)
     x = np.maximum(0,x+noise)

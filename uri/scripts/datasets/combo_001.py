@@ -8,7 +8,6 @@ import sys
 
 datasetname = 'combo_001'
 data_path = Path('/scratch/bpho')
-data_path = Path('/scratch/bpho')
 datasources = data_path/'datasources'
 datasets = data_path/'datasets'
 dataset = datasets/datasetname

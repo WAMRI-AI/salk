@@ -1,0 +1,11 @@
+NOTES
+LF 02-20-2019
+
+Run combo_001
+
+1. Paired files generate 1024 tiles
+   Crappified files don't generate 1024 files, some of which lack 512 tiles too.
+
+2. Problematic Airyscan files from the server are tossed, name list of the tossed files were saved in separate .txt files. Problems can be:
+   - Some of them are too dim to include enough information, for example, signals are too low, most of a frame can be almost completely dark.
+   - Some are too small to crop 512.

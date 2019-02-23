@@ -110,4 +110,26 @@ for lst in [one_channel, two_channel, hr_airyscan]:
                 fn, hr_path/sub_dir, lr_path/sub_dir, lr_up_path/sub_dir,
                 base_name, max_scale=1.05, max_per_movie=True)
 
+print('\n\nbuild tiles.\n\n')
+
+
+def save_tiles(tile_size, untiled_files, num_tiles=5, scale=4, threshold=100):
+    for sub_dir in ['train','valid']:
+        print(f'\n\nbuild tiles {sub_dir}/{tile_size}\n\n')
+        hr_ROI = dpath/f'roi_hr_{tile_size}'/subdir
+        lr_ROI = dpath/f'roi_lr_{tile_size}'/subdir
+        lr_up_ROI = dpath/f'roi_lr_up_{tile_size}'/subdir
+        #print('\n', hr_ROI, '\n', lr_ROI, '\n', lr_up_ROI)
+        print('Creating ROIs with tile size ' + str(tile_size))
+        for hr_fn in progress_bar(list(hr_path.iterdir())):
+            #print('Processing ' + hr_fn.name + ', tile_size is ' + str(tile_size) + '.')
+            lr_fn = lr_path/hr_fn.name
+            helpers.tif_to_tiles(lr_fn, hr_fn, hr_fn.stem, hr_ROI, lr_up_ROI, lr_ROI, size=tile_size,
+                                 num_tiles=num_tiles, scale=scale, threshold=threshold, untiled_ls=untiled_files)
+
+untiled_files = []
+for tile_size in [128,256,512]:
+    save_tiles(tile_size, untiled_files)
+
+print('\n{len(untiled_files)} untiled files')
 print('\n\nall done.\n\n')

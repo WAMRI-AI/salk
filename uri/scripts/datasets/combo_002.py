@@ -121,9 +121,11 @@ def save_tiles(tile_size, untiled_files, num_tiles=5, scale=4, threshold=100):
         lr_up_ROI = dpath/f'roi_lr_up_{tile_size}'/subdir
         #print('\n', hr_ROI, '\n', lr_ROI, '\n', lr_up_ROI)
         print('Creating ROIs with tile size ' + str(tile_size))
-        for hr_fn in progress_bar(list(hr_path.iterdir())):
+        hrdir = hr_path/sub_dir
+        lrdir = lr_path/sub_dir
+        for hr_fn in progress_bar(list(hrdir.iterdir())):
             #print('Processing ' + hr_fn.name + ', tile_size is ' + str(tile_size) + '.')
-            lr_fn = lr_path/hr_fn.name
+            lr_fn = lrdir/hr_fn.name
             helpers.tif_to_tiles(lr_fn, hr_fn, hr_fn.stem, hr_ROI, lr_up_ROI, lr_ROI, size=tile_size,
                                  num_tiles=num_tiles, scale=scale, threshold=threshold, untiled_ls=untiled_files)
 

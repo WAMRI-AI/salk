@@ -107,7 +107,7 @@ for lst in [one_channel, two_channel, hr_airyscan]:
         for fn in progress_bar(file_list):
             base_name = fn.stem
             algo_crappify_movie_to_tifs(
-                fn, hr_path/sub_dir, lr_path/sub_dir, lr_up_path/sub_dir,
+                fn, hr_path/subdir, lr_path/subdir, lr_up_path/subdir,
                 base_name, max_scale=1.05, max_per_movie=True)
 
 print('\n\nbuild tiles.\n\n')

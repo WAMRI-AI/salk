@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import math
 from fastai.torch_core import requires_grad, children
 from fastai.basics import Iterator, MSELossFlat, partial, Learner, tensor
-from fastai.vision import ImageItemList, Image, pil2tensor, get_transforms
+from fastai.vision import ImageList, Image, pil2tensor, get_transforms
 from fastai.vision.image import TfmPixel
 from fastai.layers import Lambda, PixelShuffle_ICNR
 from fastai.callbacks import SaveModelCallback, hook_outputs
@@ -67,7 +67,7 @@ def open_grayscale(fn):
     x = PIL.Image.open(fn)
     return Image(pil2tensor(x,np.float32).div_(255)[0:1])
 
-class SuperResLabelList(ImageItemList):
+class SuperResLabelList(ImageList):
     def __init__(self, items:Iterator, **kwargs):
         super().__init__(items, **kwargs)
         self.loss_func,self.create_func = MSELossFlat(),open_grayscale
@@ -76,7 +76,7 @@ class SuperResLabelList(ImageItemList):
         return self.__class__(items, **kwargs)
 
 
-class SuperResItemList(ImageItemList):
+class SuperResItemList(ImageList):
     def __post_init__(self):
         super().__post_init__()
         self.label_cls = SuperResLabelList
@@ -190,7 +190,7 @@ def combo_edge_mse(input, target):
 # superres_metrics = [F.mse_loss, edge_loss,ssim.ssim, psnr]
 superres_metrics = [F.mse_loss, ssim.ssim, psnr]
 
-class GrayImageItemList(ImageItemList):
+class GrayImageItemList(ImageList):
     def open(self, fn): return open_grayscale(fn)
 
 
@@ -248,7 +248,7 @@ def get_czi_shape_info(czi): #return dimension of czi files
     return axes_dict, shape_dict
 
 
-def build_index(axes, ix_select): 
+def build_index(axes, ix_select):
     idx = [ix_select.get(ax, 0) for ax in axes]
     return tuple(idx)
 

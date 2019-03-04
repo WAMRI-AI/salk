@@ -47,19 +47,21 @@ def build_file_map(src): return  { (pull_id(x),pull_depth(x)):x for x in src.ite
 
 def pair_copy_tif_files(file_map, dest_dir, scale_list=None):
     for (id, depth), fn in progress_bar(list(file_map.items())):
-        if id in train_ids: dest = dest_dir/'train'
-        else: dest = dest_dir/'valid'
+        if id in train_ids: subdir = 'train'
+        else: subdir = 'valid'
+        dest = dest_dir/subdir
         new_fn = f'pair_{id}_{depth}.tif'
         dest.mkdir(parents=True, mode=0o775, exist_ok=True)
         shutil.copy(fn, dest/new_fn)
 
         if scale_list:
             for scale, scale_dir in scale_list:
-                scale_dir.mkdir(parents=True, mode=0o775, exist_ok=True)
+                scale_dest = scale_dir/subdir 
+                scale_dest.mkdir(parents=True, mode=0o775, exist_ok=True)
                 lr_data = np.array(PIL.Image.open(dest/fn))
                 lr_up_data = zoom(lr_data, (scale, scale, 1), order=1)
                 lr_img_up = PIL.Image.fromarray(lr_up_data)
-                lr_img_up.save(scale_dir/new_fn)
+                lr_img_up.save(scale_dest/new_fn)
 
 hr_pair_map = build_file_map(paired_hr) #map the lr and hr names
 lr_pair_map = build_file_map(paired_lr)
@@ -116,9 +118,9 @@ print('\n\nbuild tiles.\n\n')
 def save_tiles(tile_size, untiled_files, num_tiles=5, scale=4, threshold=100):
     for sub_dir in ['train','valid']:
         print(f'\n\nbuild tiles {sub_dir}/{tile_size}\n\n')
-        hr_ROI = dpath/f'roi_hr_{tile_size}'/subdir
-        lr_ROI = dpath/f'roi_lr_{tile_size}'/subdir
-        lr_up_ROI = dpath/f'roi_lr_up_{tile_size}'/subdir
+        hr_ROI = dpath/f'roi_hr_{tile_size}'/sub_dir
+        lr_ROI = dpath/f'roi_lr_{tile_size}'/sub_dir
+        lr_up_ROI = dpath/f'roi_lr_up_{tile_size}'/sub_dir
         #print('\n', hr_ROI, '\n', lr_ROI, '\n', lr_up_ROI)
         print('Creating ROIs with tile size ' + str(tile_size))
         hrdir = hr_path/sub_dir

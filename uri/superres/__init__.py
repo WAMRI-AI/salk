@@ -2,9 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from fastai.torch_core import requires_grad, children
-from fastai.basics import Iterator, MSELossFlat, partial, Learner, tensor
-from fastai.vision import ImageList, Image, pil2tensor, get_transforms
+from fastai.torch_core import requires_grad, children, ItemBase, ifnone
+from fastai.data_block import ItemList
+from fastai.basics import Iterator, MSELossFlat, partial, Learner, tensor, DatasetType
+from fastai.vision import ImageList, Image, pil2tensor, get_transforms, ImageDataBunch
+from fastai.vision.data import normalize_funcs
 from fastai.vision.image import TfmPixel
 from fastai.layers import Lambda, PixelShuffle_ICNR, conv_layer, NormType
 from fastai.callbacks import SaveModelCallback, hook_outputs
@@ -439,3 +441,86 @@ class TwoYLoss(nn.Module):
             'psnr': (psnr(y1, target)+psnr(y2,target))/2
         }
         return loss
+
+
+class NpyRawImageList(ImageList):
+    def open(self, fn):
+        img_data = np.load(fn)
+        return Image(tensor(img_data[None]))
+
+    def analyze_pred(self, pred):
+        if len(pred.shape) > 3: pred = pred[0]
+        return pred
+
+    def reconstruct(self, t):
+        return Image(t.float().clamp(min=0,max=1))
+
+
+class TransformableLists(ItemBase):
+    def __init__(self, img_lists):
+        self.img_lists = img_lists
+
+    def __repr__(self):
+        return f'MultiImg: {len(self.img_lists)}'
+
+    @property
+    def data(self):
+        img_data = torch.stack([torch.stack([img.data for img in img_list]) 
+                                            for img_list in self.img_lists])
+        data = tensor(img_data)
+        return data
+
+    def apply_tfms(self, tfms, **kwargs):
+        first_time = True
+        save_img_lists = []
+        for img_list in self.img_lists:
+            save_img_list = []
+            for img in img_list:
+                new_img = img.apply_tfms(tfms, do_resolve=first_time, **kwargs)
+                first_time = False
+                save_img_list.append(new_img)
+            save_img_lists.append(save_img_list)
+        self.img_lists = save_img_lists
+        return self
+
+class MultiImageDataBunch(ImageDataBunch):
+    def batch_stats(self, funcs=None):
+        "Grab a batch of data and call reduction function `func` per channel"
+        funcs = ifnone(funcs, [torch.mean,torch.std])
+        ds_type = DatasetType.Valid if self.valid_dl else DatasetType.Train
+        x = self.one_batch(ds_type=ds_type, denorm=False)[0].cpu()
+        def multi_channel_view(x):
+            return x.transpose(3,0).contiguous().view(x.shape[3],-1)
+        return [func(multi_channel_view(x), 1) for func in funcs]
+
+    def normalize(self, stats=None, do_x=True, do_y=False):
+        "Add normalize transform using `stats` (defaults to `DataBunch.batch_stats`)"
+        if getattr(self,'norm',False): raise Exception('Can not call normalize twice')
+        if stats is None: self.stats = self.batch_stats()
+        else:             self.stats = stats
+        self.norm,self.denorm = normalize_funcs(*self.stats, do_x=do_x, do_y=do_y)
+        self.add_tfm(self.norm)
+        return self
+
+class MultiImageList(ItemList):
+    _bunch = MultiImageDataBunch
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def open(self, fn):
+        img_data = np.load(fn)
+        img_lists = []
+        for j in range(img_data.shape[0]):
+            imgs = []
+            for i in range(img_data.shape[1]):
+                imgs.append(Image(tensor(img_data[j,i,:,:][None])))
+            img_lists.append(imgs)
+        return TransformableLists(img_lists)
+
+    def get(self, i):
+        fn = super().get(i)
+        img_lists = self.open(fn)
+        return img_lists
+
+class MultiToMultiImageList(MultiImageList):
+    _label_cls = NpyRawImageList

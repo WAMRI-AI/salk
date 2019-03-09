@@ -6,7 +6,7 @@ from fastai.torch_core import requires_grad, children
 from fastai.basics import Iterator, MSELossFlat, partial, Learner, tensor
 from fastai.vision import ImageList, Image, pil2tensor, get_transforms
 from fastai.vision.image import TfmPixel
-from fastai.layers import Lambda, PixelShuffle_ICNR
+from fastai.layers import Lambda, PixelShuffle_ICNR, conv_layer, NormType
 from fastai.callbacks import SaveModelCallback, hook_outputs
 import PIL
 import numpy as np
@@ -301,3 +301,141 @@ def micro_crappify(data, gauss_sigma = 20, scale=4, order=1): #data: 1 frame; pl
     x_down = zoom(x, 1/scale, order=0)
     x_down_up = zoom(x_down, scale, order=order)
     return x_down, x_down_up
+
+class TwoXModel(nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, x):
+        x1, x2 = x[:,0], x[:,1]
+        y1 = self.model(x1)
+        y2 = self.model(x2)
+        return torch.stack([y1,y2])
+
+class ShortcutBlock(nn.Module):
+    #Elementwise sum the output of a submodule to its input
+    def __init__(self, submodule):
+        super(ShortcutBlock, self).__init__()
+        self.sub = submodule
+
+    def forward(self, x):
+        output = x + self.sub(x)
+        return output
+
+    def __repr__(self):
+        tmpstr = 'Identity + \n|'
+        modstr = self.sub.__repr__().replace('\n', '\n|')
+        tmpstr = tmpstr + modstr
+        return tmpstr
+
+
+def sequential(*args):
+    # Flatten Sequential. It unwraps nn.Sequential.
+    if len(args) == 1:
+        if isinstance(args[0], OrderedDict):
+            raise NotImplementedError('sequential does not support OrderedDict input.')
+        return args[0]  # No sequential is needed.
+    modules = []
+    for module in args:
+        if isinstance(module, nn.Sequential):
+            for submodule in module.children():
+                modules.append(submodule)
+        elif isinstance(module, nn.Module):
+            modules.append(module)
+    return nn.Sequential(*modules)
+
+
+class ResidualDenseBlock_5C(nn.Module):
+    def __init__(self, nc, gc=32):
+        super().__init__()
+        # gc: growth channel, i.e. intermediate channels
+        self.conv1 = conv_layer(nc, gc, norm_type=NormType.Weight, leaky=0.2)
+        self.conv2 = conv_layer(nc+gc, gc, norm_type=NormType.Weight, leaky=0.2)
+        self.conv3 = conv_layer(nc+2*gc, gc, norm_type=NormType.Weight, leaky=0.2)
+        self.conv4 = conv_layer(nc+3*gc, gc, norm_type=NormType.Weight, leaky=0.2)
+        # turn off activation?
+        self.conv5 = conv_layer(nc+4*gc, gc, norm_type=NormType.Weight, leaky=0.2, use_activ=False)
+
+    def forward(self, x):
+        x1 = self.conv1(x)
+        x2 = self.conv2(torch.cat((x, x1), 1))
+        x3 = self.conv3(torch.cat((x, x1, x2), 1))
+        x4 = self.conv4(torch.cat((x, x1, x2, x3), 1))
+        x5 = self.conv5(torch.cat((x, x1, x2, x3, x4), 1))
+        return x5.mul(0.2) + x
+
+class RRDB(nn.Module):
+    def __init__(self, nc, gc=32):
+        super(RRDB, self).__init__()
+        self.RDB1 = ResidualDenseBlock_5C(nc, gc)
+        self.RDB2 = ResidualDenseBlock_5C(nc, gc)
+        self.RDB3 = ResidualDenseBlock_5C(nc, gc)
+
+    def forward(self, x):
+        out = self.RDB1(x)
+        out = self.RDB2(out)
+        out = self.RDB3(out)
+        return out.mul(0.2) + x
+
+class RRDB_Net(nn.Module):
+    def __init__(self, in_nc, out_nc, nf, nb, gc=32, upscale=4):
+        super(RRDB_Net, self).__init__()
+        n_upscale = int(math.log(upscale, 2))
+        if upscale == 3:
+            n_upscale = 1
+        fea_conv = conv_layer(in_nc, nf, norm_type=None, use_activ=False)
+        rb_blocks = [RRDB(nf, gc=gc) for _ in range(nb)]
+        LR_conv = conv_layer(nf, nf, leaky=0.2)
+
+        if upscale == 3:
+            upsampler = PixelShuffle_ICNR(nf, blur=True, leaky=0.2, scale=3)
+        else:
+            upsampler = [PixelShuffle_ICNR(nf, blur=True, leaky=0.2) for _ in range(n_upscale)]
+
+        HR_conv0 = conv_layer(nf, nf, leaky=0.2)
+        HR_conv1 = conv_layer(nf, out_nc, norm_type=None, use_activ=False)
+
+        self.model = sequential(
+            fea_conv,
+            ShortcutBlock(sequential(*rb_blocks, LR_conv)),\
+            *upsampler, HR_conv0, HR_conv1
+        )
+
+    def forward(self, x):
+        x = self.model(x)
+        return x
+
+class MultiImageToMultiChannel(nn.Module):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, x):
+        new_x = x.view(x.shape[0],-1,x.shape[-2], x.shape[-1])
+        return self.model(new_x)
+
+class TwoYLoss(nn.Module):
+    def __init__(self, base_loss=F.mse_loss, stable_wt=0.15):
+        super().__init__()
+        self.base_loss = base_loss
+        self.stable_wt = stable_wt
+        self.base_loss_wt = (1-stable_wt)/2
+        self.metric_names = ['pixel','stable','ssim','psnr']
+
+    def forward(self, input, target):
+        base_loss = self.base_loss
+        y1,y2 = input[0], input[1]
+        base_1 = base_loss(y1, target)
+        base_2 = base_loss(y2, target)
+        stable_err = F.mse_loss(y1,y2)
+        loss = (base_1 * self.base_loss_wt +
+                base_2 * self.base_loss_wt +
+                stable_err * self.stable_wt)
+        self.metrics = {
+            'pixel': (base_1+base_2)/2,
+            'stable': stable_err,
+            'ssim': (ssim.ssim(y1, target)+ssim.ssim(y2,target))/2,
+            'psnr': (psnr(y1, target)+psnr(y2,target))/2
+        }
+        return loss

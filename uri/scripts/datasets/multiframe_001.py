@@ -70,7 +70,7 @@ def czi_to_multiframe(czi_fn, hr_dir, lr_dir, lr_up_dir, wsize=3, max_scale=1.05
         for channel in range(channels):
             img_max = None
             timerange = list(range(0,times-wsize+1))
-            if len(timerange) == wsize:
+            if len(timerange) >= wsize:
                 for time_col in progress_bar(timerange, parent=pbar):
                     save_name = f'{czi_fn.stem}_{channel:02d}_{time_col:03d}.npy'.replace(' ','_')
                     idx = build_index(proc_axes, {'T': slice(time_col,time_col+wsize), 'C': channel, 'X':slice(0,x),'Y':slice(0,y)})
@@ -107,7 +107,7 @@ for fn in hr_mito:
     else: train_files.append(fn)
 
 
-for lst in [one_channel, two_channel, hr_airyscan]:
+for lst in [hr_airyscan, one_channel, two_channel]:
     lst.sort()
     random.shuffle(lst)
     split_idx = int(valid_pct * len(lst))

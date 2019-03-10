@@ -313,7 +313,7 @@ class TwoXModel(nn.Module):
         x1, x2 = x[:,0], x[:,1]
         y1 = self.model(x1)
         y2 = self.model(x2)
-        return torch.stack([y1,y2])
+        return torch.cat((y1,y2),1)
 
 class ShortcutBlock(nn.Module):
     #Elementwise sum the output of a submodule to its input
@@ -352,12 +352,12 @@ class ResidualDenseBlock_5C(nn.Module):
     def __init__(self, nc, gc=32):
         super().__init__()
         # gc: growth channel, i.e. intermediate channels
-        self.conv1 = conv_layer(nc, gc, norm_type=NormType.Weight, leaky=0.2)
-        self.conv2 = conv_layer(nc+gc, gc, norm_type=NormType.Weight, leaky=0.2)
-        self.conv3 = conv_layer(nc+2*gc, gc, norm_type=NormType.Weight, leaky=0.2)
-        self.conv4 = conv_layer(nc+3*gc, gc, norm_type=NormType.Weight, leaky=0.2)
+        self.conv1 = conv_layer(nc, gc, norm_type=NormType.Weight, leaky=0.02)
+        self.conv2 = conv_layer(nc+gc, gc, norm_type=NormType.Weight, leaky=0.02)
+        self.conv3 = conv_layer(nc+2*gc, gc, norm_type=NormType.Weight, leaky=0.02)
+        self.conv4 = conv_layer(nc+3*gc, gc, norm_type=NormType.Weight, leaky=0.02)
         # turn off activation?
-        self.conv5 = conv_layer(nc+4*gc, gc, norm_type=NormType.Weight, leaky=0.2, use_activ=False)
+        self.conv5 = conv_layer(nc+4*gc, nc, norm_type=NormType.Weight, leaky=0.02, use_activ=False)
 
     def forward(self, x):
         x1 = self.conv1(x)
@@ -386,17 +386,17 @@ class RRDB_Net(nn.Module):
         n_upscale = int(math.log(upscale, 2))
         if upscale == 3:
             n_upscale = 1
-        fea_conv = conv_layer(in_nc, nf, norm_type=None, use_activ=False)
+        fea_conv = conv_layer(in_nc, nf, norm_type=NormType.Weight, use_activ=False)
         rb_blocks = [RRDB(nf, gc=gc) for _ in range(nb)]
         LR_conv = conv_layer(nf, nf, leaky=0.2)
 
         if upscale == 3:
-            upsampler = PixelShuffle_ICNR(nf, blur=True, leaky=0.2, scale=3)
+            upsampler = PixelShuffle_ICNR(nf, blur=True, leaky=0.02, scale=3)
         else:
-            upsampler = [PixelShuffle_ICNR(nf, blur=True, leaky=0.2) for _ in range(n_upscale)]
+            upsampler = [PixelShuffle_ICNR(nf, blur=True, leaky=0.02) for _ in range(n_upscale)]
 
-        HR_conv0 = conv_layer(nf, nf, leaky=0.2)
-        HR_conv1 = conv_layer(nf, out_nc, norm_type=None, use_activ=False)
+        HR_conv0 = conv_layer(nf, nf, leaky=0.02, norm_type=NormType.Weight)
+        HR_conv1 = conv_layer(nf, out_nc, leaky=0.02, norm_type=NormType.Weight, use_activ=False)
 
         self.model = sequential(
             fea_conv,
@@ -427,7 +427,8 @@ class TwoYLoss(nn.Module):
 
     def forward(self, input, target):
         base_loss = self.base_loss
-        y1,y2 = input[0], input[1]
+        y1 = input[:,0:1,:,:]
+        y2 = input[:,1:2,:,:]
         base_1 = base_loss(y1, target)
         base_2 = base_loss(y2, target)
         stable_err = F.mse_loss(y1,y2)
@@ -449,8 +450,7 @@ class NpyRawImageList(ImageList):
         return Image(tensor(img_data[None]))
 
     def analyze_pred(self, pred):
-        if len(pred.shape) > 3: pred = pred[0]
-        return pred
+        return pred[0:1]
 
     def reconstruct(self, t):
         return Image(t.float().clamp(min=0,max=1))

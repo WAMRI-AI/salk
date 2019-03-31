@@ -10,7 +10,7 @@ import numpy as np
 import czifile
 
 from superres import get_czi_shape_info, build_index
-from skimage.util import random_noise
+from skimage.util import random_noise, img_as_ubyte
 from skimage import filters
 from pdb import set_trace
 
@@ -92,12 +92,13 @@ def new_crappify_movie_to_tifs(czi_fn, hr_dir, lr_dir, lr_up_dir, base_name, max
                     except:
                         continue
 
-                    pimg = PIL.Image.fromarray(img.astype(np.uint8), mode='L')
+                    img = img_as_ubyte(img)
+                    pimg = PIL.Image.fromarray(img, mode='L')
                     cur_size = pimg.size
                     pimg.save(hr_dir/save_fn)
 
-                    small_img = PIL.Image.fromarray(down_img.astype(np.uint8))
-                    big_img = PIL.Image.fromarray(down_up_img.astype(np.uint8))
+                    small_img = PIL.Image.fromarray(img_as_ubyte(down_img))
+                    big_img = PIL.Image.fromarray(img_as_ubyte(down_up_img))
                     small_img.save(lr_dir/save_fn)
                     big_img.save(lr_up_dir/save_fn)
 

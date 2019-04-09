@@ -3,7 +3,7 @@
 
 People:
 
-- Uri Manor is the director of the imaging group at salk - busy scientist
+- Uri Manor is the director of the imaging group at salk
 - Linjing Fang is primary contact
 
 # Setup
@@ -92,8 +92,6 @@ For now just see if you can find batch sizes that work for you w/ the various ti
 Use the private github salk repo for notes and can change things around.
 
 Until the paper is out - no public discussion of what we are working on or relationship w/ salk
-
-(I think they are softening on that as they see we aren't full of shit but that was the last instructions i had when we were first getting started)
 
 The image data is private
 

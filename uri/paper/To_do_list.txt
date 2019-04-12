@@ -1,0 +1,50 @@
+BPHO_DATA (now called combo)
+    fixed
+        neuron
+        actin
+    live
+    em
+        3view
+
+
+datasets (are datasets just for training(validation) or include out of sample test data)
+    combo - fix, live including neuron (everything)
+    combo_noneuron - fix, live but no neuron
+    combo_mf - fix, live including neuron (everything)
+    combo_noneuron_mf - fix, live but no neuron
+    neuron
+    neuron_mf
+    em_synth - em
+    
+    
+testsets:
+    paper1_story1
+    movies -2 mito, 2 neuron, 1 actine
+    neuron movies
+    em
+    em3view
+
+models
+    combo
+    combo_noneuron
+    combo_mf
+    combo_noneuron_mf
+
+    neuron_transfer (accuracy / training time)?
+        from_scratch_only_neuron
+        pretrained_combo_noneuron
+        
+    neuron_transfer_mf (hopefully)
+        from_scratch_only_neuron_mf
+        pretrained_combo_noneuron_mf
+    
+    em_sr
+    
+    
+    
+    
+- combo baseline ()
+    dataset
+- EM
+
+

@@ -7,8 +7,11 @@ from fastprogress import master_bar, progress_bar
 from time import sleep
 from pdb import set_trace
 import shutil
+import PIL
 
-def process_czi(item, mode, dest, single, multi, num_frames=5):
+PIL.Image.MAX_IMAGE_PIXELS = 99999999999999
+
+def process_czi(item, category, mode, dest, single, multi, num_frames=5):
     hr_dir = dest/'hr'/mode
     lr_dir = dest/'lr'/mode
     lr_up_dir = dest/'lr_up'/mode
@@ -16,22 +19,31 @@ def process_czi(item, mode, dest, single, multi, num_frames=5):
     hr_dir.mkdir(parents=True, exist_ok=True)
     lr_dir.mkdir(parents=True, exist_ok=True)
     lr_up_dir.mkdir(parents=True, exist_ok=True)
-    czi_movie_to_synth(item, dest, mode, single=single, multi=multi, num_frames=num_frames)
+    czi_movie_to_synth(item, dest, category, mode, single=single, multi=multi, num_frames=num_frames)
 
-def process_tif(item, mode, dest, single, multi):
-    print(f"we don't handle tiff yet {item.name}")
+def process_tif(item, category, mode, dest, single, multi, num_frames=5):
+    hr_dir = dest/'hr'/mode
+    lr_dir = dest/'lr'/mode
+    lr_up_dir = dest/'lr_up'/mode
 
-def process_unk(item, mode, dest, single, multi):
+    hr_dir.mkdir(parents=True, exist_ok=True)
+    lr_dir.mkdir(parents=True, exist_ok=True)
+    lr_up_dir.mkdir(parents=True, exist_ok=True)
+    tif_to_synth(item, dest, category, mode, single=single, multi=multi, num_frames=num_frames)
+
+def process_unk(item, category, mode, dest, single, multi):
     print(f'unknown {item.name}')
 
-def process_item(item, mode, dest, single=True, multi=False):
+
+
+def process_item(item, category, mode, dest, single=True, multi=False):
     item_map = {
         '.tif': process_tif,
         '.tiff': process_tif,
         '.czi': process_czi,
     }
     map_f = item_map.get(item.suffix, process_unk)
-    map_f(item, mode, dest, single, multi)
+    map_f(item, category, mode, dest, single, multi)
 
 
 
@@ -39,10 +51,11 @@ def build_from_datasource(src, dest, single=True, multi=False, mbar=None):
     for mode in ['train', 'valid', 'test']:
         src_dir = src/mode
         dest_dir = dest
+        category = src.stem
         items = list(src_dir.iterdir()) if src_dir.exists() else []
         if items:
             for p in progress_bar(items, parent=mbar):
-                process_item(p, mode, dest_dir, single=single, multi=multi)
+                process_item(p, category, mode, dest_dir, single=single, multi=multi)
 
 def subfolders(p):
     return [sub for sub in p.iterdir() if sub.is_dir()]
@@ -68,7 +81,6 @@ def main(
     fixed_data = [fldr for fldr in subfolders(src/'fixed') if fldr.stem not in skip]
     #  print([fn.stem for fn in fixed_data])
     #  print([fn.stem for fn in live_data])
-      
     sources = live_data + fixed_data
     mbar = master_bar(sources)    
     for src in mbar:

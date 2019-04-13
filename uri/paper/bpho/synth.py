@@ -5,9 +5,10 @@ from scipy.ndimage.interpolation import zoom as npzoom
 from .czi import get_czi_shape_info, build_index, is_movie
 import czifile
 import PIL
+from PIL import Image, ImageSequence
 import numpy as np
 
-__all__ = ['czi_movie_to_synth']
+__all__ = ['czi_movie_to_synth', 'tif_to_synth']
 
 def new_crappify(x, scale=4):
     x = random_noise(x, mode='salt', amount=0.005)
@@ -55,7 +56,55 @@ def czi_data_to_tifs(data, axes, shape, crappify, max_scale=1.05):
     np.warnings.filterwarnings('default')
     return hr_imgs, lr_imgs, lr_up_imgs
 
-def save_tiffs(czi_fn, dest, mode, hr_imgs, lr_imgs, lr_up_imgs):
+
+
+def img_data_to_tifs(data, times, crappify, max_scale=1.05):
+    np.warnings.filterwarnings('ignore')
+    lr_imgs = {} 
+    lr_up_imgs = {} 
+    hr_imgs = {} 
+    img_max = None
+    for time_col in range(times):
+        try:
+            img = data[time_col].astype(np.float).copy()
+            img_max = img.max() * max_scale
+            if img_max==0: continue #do not save images with no contents.
+            img /= img_max
+            down_img, down_up_img = crappify(img)
+        except:
+            continue
+
+        tag = (0, 0, time_col)
+        img = img_as_ubyte(img)
+        pimg = PIL.Image.fromarray(img, mode='L')
+        small_img = PIL.Image.fromarray(img_as_ubyte(down_img))
+        big_img = PIL.Image.fromarray(img_as_ubyte(down_up_img))
+        hr_imgs[tag] = pimg
+        lr_imgs[tag] = small_img
+        lr_up_imgs[tag] = big_img
+
+    np.warnings.filterwarnings('default')
+    return hr_imgs, lr_imgs, lr_up_imgs
+
+
+def tif_to_synth(tif_fn, dest, category, mode, single=True, multi=False, num_frames=5, max_scale=1.05, crappify_func=None):
+    img = Image.open(tif_fn)
+    n_frames = img.n_frames
+
+    if crappify_func is None: crappify_func = new_crappify
+    for i in range(n_frames):
+        img.seek(i)
+        img.load()
+        data = np.array(img).copy()
+        do_multi = multi and (n_frames > 1)
+        
+        hr_imgs, lr_imgs, lr_up_imgs = img_data_to_tifs(data, n_frames, crappify_func, max_scale=max_scale) 
+        if single: save_tiffs(tif_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs)
+        if multi: save_movies(tif_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs, num_frames)
+
+
+
+def save_tiffs(czi_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs):
     hr_dir = dest/'hr'/mode
     lr_dir = dest/'lr'/mode
     lr_up_dir = dest/'lr_up'/mode
@@ -66,17 +115,17 @@ def save_tiffs(czi_fn, dest, mode, hr_imgs, lr_imgs, lr_up_imgs):
         lr_up = lr_up_imgs[tag]
 
         channel, depth, time_col = tag
-        save_name = f'{base_name}_{channel:02d}_{depth:02d}_{time_col:06d}.tif'
+        save_name = f'{base_name}_{category}_{channel:02d}_{depth:02d}_{time_col:06d}.tif'
         hr_name, lr_name, lr_up_name = [d/save_name for d in [hr_dir, lr_dir, lr_up_dir]]
         if not hr_name.exists(): hr.save(hr_name)
         if not lr_name.exists(): lr.save(lr_name)
         if not lr_up_name.exists(): lr_up.save(lr_up_name)
 
 
-def save_movies(czi_fn, dest, mode, hr_imgs, lr_imgs, lr_up_imgs, num_frames):
+def save_movies(czi_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs, num_frames):
     pass
 
-def czi_movie_to_synth(czi_fn, dest, mode, single=True, multi=False, num_frames=5, max_scale=1.05, crappify_func=None):
+def czi_movie_to_synth(czi_fn, dest, category, mode, single=True, multi=False, num_frames=5, max_scale=1.05, crappify_func=None):
     with czifile.CziFile(czi_fn) as czi_f:
         if crappify_func is None: crappify_func = new_crappify
 
@@ -85,6 +134,6 @@ def czi_movie_to_synth(czi_fn, dest, mode, single=True, multi=False, num_frames=
         data = czi_f.asarray()
         
         hr_imgs, lr_imgs, lr_up_imgs = czi_data_to_tifs(data, axes, shape, crappify_func, max_scale=max_scale) 
-        if single: save_tiffs(czi_fn, dest, mode, hr_imgs, lr_imgs, lr_up_imgs)
-        if multi: save_movies(czi_fn, dest, mode, hr_imgs, lr_imgs, lr_up_imgs, num_frames)
+        if single: save_tiffs(czi_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs)
+        if multi: save_movies(czi_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs, num_frames)
 

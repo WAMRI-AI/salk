@@ -6,7 +6,7 @@ from pathlib import Path
 from fastprogress import master_bar, progress_bar
 from time import sleep
 from pdb import set_trace
-
+import shutil
 
 def process_czi(item, mode, dest, single, multi, num_frames=5):
     hr_dir = dest/'hr'/mode

@@ -20,6 +20,7 @@ def new_crappify(x, scale=4):
 
 
 def czi_data_to_tifs(data, axes, shape, crappify, max_scale=1.05):
+    np.warnings.filterwarnings('ignore')
     lr_imgs = {} 
     lr_up_imgs = {} 
     hr_imgs = {} 
@@ -51,6 +52,7 @@ def czi_data_to_tifs(data, axes, shape, crappify, max_scale=1.05):
                 lr_imgs[tag] = small_img
                 lr_up_imgs[tag] = big_img
 
+    np.warnings.filterwarnings('default')
     return hr_imgs, lr_imgs, lr_up_imgs
 
 def save_tiffs(czi_fn, dest, mode, hr_imgs, lr_imgs, lr_up_imgs):

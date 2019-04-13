@@ -8,19 +8,41 @@ from time import sleep
 from pdb import set_trace
 
 
-def process_item(item, mode, dest, multiframe=False):
-    sleep(0.01)
+def process_czi(item, mode, dest, single, multi, num_frames=5):
+    hr_dir = dest/'hr'/mode
+    lr_dir = dest/'lr'/mode
+    lr_up_dir = dest/'lr_up'/mode
 
-def build_from_datasource(src, dest, multiframe=False, mbar=None):
+    hr_dir.mkdir(parents=True, exist_ok=True)
+    lr_dir.mkdir(parents=True, exist_ok=True)
+    lr_up_dir.mkdir(parents=True, exist_ok=True)
+    czi_movie_to_synth(item, dest, mode, single=single, multi=multi, num_frames=num_frames)
+
+def process_tif(item, mode, dest, single, multi):
+    print(f"we don't handle tiff yet {item.name}")
+
+def process_unk(item, mode, dest, single, multi):
+    print(f'unknown {item.name}')
+
+def process_item(item, mode, dest, single=True, multi=False):
+    item_map = {
+        '.tif': process_tif,
+        '.tiff': process_tif,
+        '.czi': process_czi,
+    }
+    map_f = item_map.get(item.suffix, process_unk)
+    map_f(item, mode, dest, single, multi)
+
+
+
+def build_from_datasource(src, dest, single=True, multi=False, mbar=None):
     for mode in ['train', 'valid', 'test']:
         src_dir = src/mode
-        dest_dir = dest/mode
+        dest_dir = dest
         items = list(src_dir.iterdir()) if src_dir.exists() else []
         if items:
-            if mode == 'test':
-                print(src.stem)
             for p in progress_bar(items, parent=mbar):
-                process_item(p, mode, dest_dir, multiframe=multiframe)
+                process_item(p, mode, dest_dir, single=single, multi=multi)
 
 def subfolders(p):
     return [sub for sub in p.iterdir() if sub.is_dir()]
@@ -28,7 +50,7 @@ def subfolders(p):
 @call_parse
 def main(
     name: Param("dataset name", str, opt=False),
-    no_neuron: Param("disable neuron data", bool)=False,
+    singleframe: Param("multiframe dataset", bool)=True,
     multiframe: Param("multiframe dataset", bool)=False,
     skip: Param("data to skip", str)='random',
     dest: Param("destination dir", str)='datasets',
@@ -44,14 +66,12 @@ def main(
     skip =  skip.split(',') if skip else []
     live_data = [fldr for fldr in subfolders(src/'live') if fldr.stem not in skip]
     fixed_data = [fldr for fldr in subfolders(src/'fixed') if fldr.stem not in skip]
-    print([fn.stem for fn in fixed_data])
-    print([fn.stem for fn in live_data])
+    #  print([fn.stem for fn in fixed_data])
+    #  print([fn.stem for fn in live_data])
       
-    sources = live_data
-    if not multiframe: sources += fixed_data
-
+    sources = live_data + fixed_data
     mbar = master_bar(sources)    
     for src in mbar:
-        build_from_datasource(src, dest, multiframe=multiframe, mbar=mbar)
+        build_from_datasource(src, dest, single=singleframe, multi=multiframe, mbar=mbar)
 
 

@@ -1,4 +1,4 @@
 "bpho utility functions and classes"
 from .czi import *
-
-__all__ = [*czi.__all__]
+from .synth import *
+__all__ = [*czi.__all__, *synth.__all__]

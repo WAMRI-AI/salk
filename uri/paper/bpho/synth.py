@@ -10,11 +10,12 @@ import numpy as np
 
 __all__ = ['czi_movie_to_synth', 'tif_to_synth']
 
-def new_crappify(x, scale=4):
-    x = random_noise(x, mode='salt', amount=0.005)
-    x = random_noise(x, mode='pepper', amount=0.005)
-    lvar = filters.gaussian(x, sigma=5)
-    x = random_noise(x, mode='localvar', local_vars=lvar*0.5)
+def new_crappify(x, add_noise=True, scale=4):
+    if add_noise:
+        x = random_noise(x, mode='salt', amount=0.005)
+        x = random_noise(x, mode='pepper', amount=0.005)
+        lvar = filters.gaussian(x, sigma=5)
+        x = random_noise(x, mode='localvar', local_vars=lvar*0.5)
     x_down = npzoom(x, 1/scale, order=1)
     x_up = npzoom(x_down, scale, order=1)
     return x_down, x_up
@@ -97,7 +98,7 @@ def tif_to_synth(tif_fn, dest, category, mode, single=True, multi=False, num_fra
         img.load()
         data = np.array(img).copy()
         do_multi = multi and (n_frames > 1)
-        
+       
         hr_imgs, lr_imgs, lr_up_imgs = img_data_to_tifs(data, n_frames, crappify_func, max_scale=max_scale) 
         if single: save_tiffs(tif_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs)
         if multi: save_movies(tif_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs, num_frames)

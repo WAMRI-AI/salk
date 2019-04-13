@@ -33,7 +33,6 @@ def czi_data_to_tifs(data, axes, shape, crappify, max_scale=1.05):
     
     for channel in range(channels):
         for depth in range(depths):
-            img_max = None
             for time_col in range(times):
                 try:
                     idx = build_index(axes, {'T': time_col, 'C': channel, 'Z':depth, 'X':slice(0,x),'Y':slice(0,y)})
@@ -64,7 +63,6 @@ def img_data_to_tifs(data, times, crappify, max_scale=1.05):
     lr_imgs = {} 
     lr_up_imgs = {} 
     hr_imgs = {} 
-    img_max = None
     for time_col in range(times):
         try:
             img = data[time_col].astype(np.float).copy()
@@ -102,7 +100,6 @@ def tif_to_synth(tif_fn, dest, category, mode, single=True, multi=False, num_fra
         hr_imgs, lr_imgs, lr_up_imgs = img_data_to_tifs(data, n_frames, crappify_func, max_scale=max_scale) 
         if single: save_tiffs(tif_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs)
         if multi: save_movies(tif_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs, num_frames)
-
 
 
 def save_tiffs(czi_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs):

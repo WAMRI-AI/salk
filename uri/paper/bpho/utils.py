@@ -69,6 +69,11 @@ def tif_predict_movie(learn, tif_in, orig_out='orig.tif', pred_out='pred.tif', s
     times = im.n_frames
     #times = min(times,100)
     imgs = []
+
+    if times < (wsize+2): 
+        print(f'skip {tif_in} only {times} frames')
+        return
+
     for i in range(times):
         im.seek(i)
         imgs.append(np.array(im).astype(np.float32)/255.)
@@ -82,8 +87,9 @@ def tif_predict_movie(learn, tif_in, orig_out='orig.tif', pred_out='pred.tif', s
     preds = []
     origs = []
     img_max = img_data.max()
-    print(img_max)
-    print('max: ', img_max)
+
+    x,y = im.size
+    print(f'tif: x:{x} y:{y} t:{times}')
     for t in progress_bar(list(range(0,times-wsize+1))):
         img = img_data[t:(t+wsize)].copy()
         img /= img_max
@@ -93,13 +99,13 @@ def tif_predict_movie(learn, tif_in, orig_out='orig.tif', pred_out='pred.tif', s
         preds.append(pred)
         orig = (img[1][None]*255).astype(np.uint8)
         origs.append(orig)
-
-    all_y = np.concatenate(preds)
-    #print(all_y.shape)
-    imageio.mimwrite(pred_out, all_y, bigtiff=True) #, fps=30, macro_block_size=None) # for mp4
-    all_y = np.concatenate(origs)
-    #print(all_y.shape)
-    imageio.mimwrite(orig_out, all_y, bigtiff=True) #, fps=30, macro_block_size=None)
+    if len(preds) > 0:
+        all_y = np.concatenate(preds)
+        #print(all_y.shape)
+        imageio.mimwrite(pred_out, all_y, bigtiff=True) #, fps=30, macro_block_size=None) # for mp4
+        all_y = np.concatenate(origs)
+        #print(all_y.shape)
+        imageio.mimwrite(orig_out, all_y, bigtiff=True) #, fps=30, macro_block_size=None)
 
 
 def czi_predict_movie(learn, czi_in, orig_out='orig.tif', pred_out='pred.tif', size=128, wsize=3):
@@ -111,7 +117,10 @@ def czi_predict_movie(learn, czi_in, orig_out='orig.tif', pred_out='pred.tif', s
         #times = min(times, 100)
         x,y = proc_shape['X'], proc_shape['Y']
         print(f'czi: x:{x} y:{y} t:{times} z:{depths}')
-        
+        if times < (wsize+2): 
+            print(f'skip {czi_in} only {times} frames')
+            return 
+
         #folder_name = Path(pred_out).stem
         #folder = Path(folder_name)
         #if folder.exists(): shutil.rmtree(folder)
@@ -135,13 +144,13 @@ def czi_predict_movie(learn, czi_in, orig_out='orig.tif', pred_out='pred.tif', s
             
             orig = (img[wsize//2][None]*255).astype(np.uint8)
             origs.append(orig)
-            
-        all_y = np.concatenate(preds)
-        #print(all_y.shape)
-        imageio.mimwrite(pred_out, all_y, bigtiff=True) #, fps=30, macro_block_size=None) # for mp4
-        all_y = np.concatenate(origs)
-        #print(all_y.shape)
-        imageio.mimwrite(orig_out, all_y, bigtiff=True) #, fps=30, macro_block_size=None)
+        if len(preds) > 0:             
+            all_y = np.concatenate(preds)
+            #print(all_y.shape)
+            imageio.mimwrite(pred_out, all_y, bigtiff=True) #, fps=30, macro_block_size=None) # for mp4
+            all_y = np.concatenate(origs)
+            #print(all_y.shape)
+            imageio.mimwrite(orig_out, all_y, bigtiff=True) #, fps=30, macro_block_size=None)
 
 def generate_movies(movie_files, learn, size, wsize=5):
     for fn in progress_bar(movie_files):
@@ -149,11 +158,11 @@ def generate_movies(movie_files, learn, size, wsize=5):
         orig_name = f'{fn.stem}_orig.tif'
         if not Path(pred_name).exists():
             if fn.suffix == '.czi':
-                print(f'czi {fn.stem}')
+                #  print(f'czi {fn.stem}')
                 czi_predict_movie(learn, fn, size=size, orig_out=orig_name, pred_out=pred_name, wsize=wsize)
             elif fn.suffix == '.tif':
                 tif_predict_movie(learn, fn, size=size, orig_out=orig_name, pred_out=pred_name, wsize=wsize)
                 tif_fn = fn
-                print(f'tif {fn.stem}')
+                #  print(f'tif {fn.stem}')
         else:
-            print(f'skip: {fn.stem}')
+            print(f'skip: {fn.stem} - doesn\'t exist')

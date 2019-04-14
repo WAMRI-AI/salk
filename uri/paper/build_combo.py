@@ -35,15 +35,21 @@ def process_unk(item, category, mode, dest, single, multi):
     print(f'unknown {item.name}')
 
 
+def just_copy(item, category, mode, dest):
+    cat_dest = dest/mode/category
+    cat_dest.mkdir(parents=True, exist_ok=True)
+    shutil.copy(item, cat_dest/item.name) 
 
 def process_item(item, category, mode, dest, single=True, multi=False):
-    item_map = {
-        '.tif': process_tif,
-        '.tiff': process_tif,
-        '.czi': process_czi,
-    }
-    map_f = item_map.get(item.suffix, process_unk)
-    map_f(item, category, mode, dest, single, multi)
+    if mode == 'test': just_copy(item, category, mode, dest)
+    else:
+        item_map = {
+            '.tif': process_tif,
+            '.tiff': process_tif,
+            '.czi': process_czi,
+        }
+        map_f = item_map.get(item.suffix, process_unk)
+        map_f(item, category, mode, dest, single, multi)
 
 
 

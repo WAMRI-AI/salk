@@ -208,7 +208,7 @@ def generate_movies(movie_files, learn, size, wsize=5):
             print(f'skip: {fn.stem} - doesn\'t exist')
 
 
-def tif_predict_images(learn, tif_in, dest, category, tag=None, size=128):
+def tif_predict_images(learn, tif_in, dest, category, tag=None, size=128, max_imgs=None):
     under_tag = f'_' if tag is None else f'_{tag}_'
     dest_folder = Path(dest/category)
     dest_folder.mkdir(exist_ok=True, parents=True)
@@ -218,6 +218,8 @@ def tif_predict_images(learn, tif_in, dest, category, tag=None, size=128):
     im = PIL.Image.open(tif_in)
     im.load()
     times = im.n_frames
+    if not max_imgs is None: times = min(max_imgs, times)
+
     imgs = []
 
 
@@ -250,7 +252,7 @@ def tif_predict_images(learn, tif_in, dest, category, tag=None, size=128):
         imageio.mimwrite(orig_out, all_y, bigtiff=True)
 
 
-def czi_predict_images(learn, czi_in, dest, category, tag=None, size=128):
+def czi_predict_images(learn, czi_in, dest, category, tag=None, size=128, max_imgs=None):
     with czifile.CziFile(czi_in) as czi_f:
         
         under_tag = f'_' if tag is None else f'_{tag}_'
@@ -265,6 +267,7 @@ def czi_predict_images(learn, czi_in, dest, category, tag=None, size=128):
         channels = proc_shape['C']
         depths = proc_shape['Z']
         times = proc_shape['T']
+        if not max_imgs is None: times = min(max_imgs, times)
 
         x,y = proc_shape['X'], proc_shape['Y']
 
@@ -297,10 +300,10 @@ def czi_predict_images(learn, czi_in, dest, category, tag=None, size=128):
             imageio.mimwrite(orig_out, all_y, bigtiff=True)
 
 
-def generate_tifs(src, dest, learn, size, tag=None):
+def generate_tifs(src, dest, learn, size, tag=None, max_imgs=None):
     for fn in progress_bar(src):
         category = fn.parts[-3]
         if fn.suffix == '.czi':
-            czi_predict_images(learn, fn, dest, category, size=size, tag=tag)
+            czi_predict_images(learn, fn, dest, category, size=size, tag=tag, max_imgs=max_imgs)
         elif fn.suffix == '.tif':
-            tif_predict_images(learn, fn, dest, category, size=size, tag=tag)
+            tif_predict_images(learn, fn, dest, category, size=size, tag=tag, max_imgs=max_imgs)

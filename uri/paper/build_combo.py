@@ -81,15 +81,13 @@ def main(
     src = Path(src)
     if dest.exists() and clean: shutil.rmtree(dest)
     if not dest.exists(): dest.mkdir(parents=True, mode=0o775, exist_ok=True)
-    
+
     skip =  skip.split(',') if skip else []
     live_data = [fldr for fldr in subfolders(src/'live') if fldr.stem not in skip]
     fixed_data = [fldr for fldr in subfolders(src/'fixed') if fldr.stem not in skip]
     #  print([fn.stem for fn in fixed_data])
     #  print([fn.stem for fn in live_data])
     sources = live_data + fixed_data
-    mbar = master_bar(sources)    
+    mbar = master_bar(sources)
     for src in mbar:
         build_from_datasource(src, dest, single=singleframe, multi=multiframe, mbar=mbar)
-
-

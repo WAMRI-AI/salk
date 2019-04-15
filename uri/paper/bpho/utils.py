@@ -214,6 +214,9 @@ def tif_predict_images(learn, tif_in, dest, category, tag=None, size=128, max_im
     dest_folder.mkdir(exist_ok=True, parents=True)
     pred_out = dest_folder/f'{tif_in.stem}{under_tag}pred.tif'
     orig_out = dest_folder/f'{tif_in.stem}{under_tag}orig.tif'
+    if pred_out.exists():
+        print(f'{pred_out.stem} exists')
+        return
 
     im = PIL.Image.open(tif_in)
     im.load()
@@ -258,9 +261,6 @@ def czi_predict_images(learn, czi_in, dest, category, tag=None, size=128, max_im
         under_tag = f'_' if tag is None else f'_{tag}_'
         dest_folder = Path(dest/category)
         dest_folder.mkdir(exist_ok=True, parents=True)
-        pred_out = dest_folder/f'{czi_in.stem}{under_tag}pred.tif'
-        orig_out = dest_folder/f'{czi_in.stem}{under_tag}orig.tif'
-        
         
         
         proc_axes, proc_shape = get_czi_shape_info(czi_f)
@@ -275,35 +275,49 @@ def czi_predict_images(learn, czi_in, dest, category, tag=None, size=128, max_im
         data = czi_f.asarray().astype(np.float32)/255.
 
         
-        preds = []
-        origs = []
 
         img_max = data.max()
         print(img_max)
-        for t in progress_bar(list(range(times))):
-            idx = build_index(proc_axes, {'T': t, 'C': 0, 'Z':0, 'X':slice(0,x),'Y':slice(0,y)})
-            img = data[idx].copy()
-            img /= img_max
+        for c in channels:
+            for z in depths:
+                preds = []
+                origs = []
+                if (len(depths) > 1) or (len(channels) > 1):
+                    pred_out = dest_folder/f'{czi_in.stem}_c{c:02d}_z{z:02d}_{under_tag}_pred.tif'
+                    orig_out = dest_folder/f'{czi_in.stem}_c{c:02d}_z{z:02d}_{under_tag}_orig.tif'
+                else:
+                    pred_out = dest_folder/f'{czi_in.stem}_{under_tag}_pred.tif'
+                    orig_out = dest_folder/f'{czi_in.stem}_{under_tag}_orig.tif'
+                if not pred_out.exists():
+                    for t in progress_bar(list(range(times))):
+                        idx = build_index(proc_axes, {'T': t, 'C': 0, 'Z':0, 'X':slice(0,x),'Y':slice(0,y)})
+                        img = data[idx].copy()
+                        img /= img_max
 
-            out_img = unet_image_from_tiles(learn, img[None], tile_sz=size)
-            pred = (out_img*255).cpu().numpy().astype(np.uint8)
-            preds.append(pred)
-            #imsave(folder/f'{t}.tif', pred[0])
+                        out_img = unet_image_from_tiles(learn, img[None], tile_sz=size)
+                        pred = (out_img*255).cpu().numpy().astype(np.uint8)
+                        preds.append(pred)
+                        #imsave(folder/f'{t}.tif', pred[0])
 
-            orig = (img[None]*255).astype(np.uint8)
-            origs.append(orig)
-        
-        if len(preds) > 0:
-            all_y = np.concatenate(preds)
-            imageio.mimwrite(pred_out, all_y, bigtiff=True)
-            all_y = np.concatenate(origs)
-            imageio.mimwrite(orig_out, all_y, bigtiff=True)
+                        orig = (img[None]*255).astype(np.uint8)
+                        origs.append(orig)
+            
+                    if len(preds) > 0:
+                        all_y = np.concatenate(preds)
+                        imageio.mimwrite(pred_out, all_y, bigtiff=True)
+                        all_y = np.concatenate(origs)
+                        imageio.mimwrite(orig_out, all_y, bigtiff=True)
 
 
 def generate_tifs(src, dest, learn, size, tag=None, max_imgs=None):
     for fn in progress_bar(src):
         category = fn.parts[-3]
-        if fn.suffix == '.czi':
-            czi_predict_images(learn, fn, dest, category, size=size, tag=tag, max_imgs=max_imgs)
-        elif fn.suffix == '.tif':
-            tif_predict_images(learn, fn, dest, category, size=size, tag=tag, max_imgs=max_imgs)
+        try:
+            if fn.suffix == '.czi':
+                czi_predict_images(learn, fn, dest, category, size=size, tag=tag, max_imgs=max_imgs)
+            elif fn.suffix == '.tif':
+                tif_predict_images(learn, fn, dest, category, size=size, tag=tag, max_imgs=max_imgs)
+        except:
+            print(f'exception with {fn.stem}')
+
+

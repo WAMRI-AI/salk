@@ -353,8 +353,8 @@ def czi_predict_images(learn,
                         idx = build_index(
                             proc_axes, {
                                 'T': t,
-                                'C': 0,
-                                'Z': 0,
+                                'C': c,
+                                'Z': z,
                                 'X': slice(0, x),
                                 'Y': slice(0, y)
                             })

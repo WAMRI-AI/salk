@@ -6,9 +6,9 @@ from skimage.util import random_noise, img_as_ubyte
 from skimage import filters
 from scipy.ndimage.interpolation import zoom as npzoom
 from .czi import get_czi_shape_info, build_index, is_movie
+from fastai.vision import *
 
 __all__ = ['czi_movie_to_synth', 'tif_to_synth']
-
 
 def new_crappify(img, add_noise=True, scale=4):
     "a crappifier for our microscope images"
@@ -64,7 +64,6 @@ def czi_data_to_tifs(data, axes, shape, crappify, max_scale=1.05):
 
     np.warnings.filterwarnings('default')
     return hr_imgs, lr_imgs, lr_up_imgs
-
 
 def img_data_to_tifs(data, times, crappify, max_scale=1.05):
     np.warnings.filterwarnings('ignore')

@@ -5,6 +5,7 @@ from fastai.vision import *
 __all__ = ['MultiImage', 'MultiImageImageList', 'MultiImageDataBunch']
 
 
+
 class MultiImage(ItemBase):
     def __init__(self, img_list):
         self.img_list = img_list
@@ -37,7 +38,7 @@ class MultiImage(ItemBase):
     def _repr_png_(self):
         return self._repr_image_format('png')
 
-    def _repr_jpeg_(self):
+    def _repr_jpeg_auto-completion-enable-help-tooltip(self):
         return self._repr_image_format('jpeg')
 
     def _repr_image_format(self, format_str):

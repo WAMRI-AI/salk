@@ -6,4 +6,8 @@ from .multi import *
 from .unet import *
 from .utils import *
 
-__all__ = [*czi.__all__, *synth.__all__, *metrics.__all__, *multi.__all__, *unet.__all__, *utils.__all__]
+# pylint: disable=undefined-variable
+__all__ = [
+    *czi.__all__, *synth.__all__, *metrics.__all__, *multi.__all__,
+    *unet.__all__, *utils.__all__
+]

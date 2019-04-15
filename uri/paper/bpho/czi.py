@@ -22,10 +22,12 @@ def build_index(axes, ix_select):
     idx = [ix_select.get(ax, 0) for ax in axes]
     return tuple(idx)
 
+
 def is_movie(czi_file):
     axes, shape = get_czi_shape_info(czi_file)
     times = axes.get('T', 1)
     return times > 1
+
 
 def has_depth(czi_file):
     axes, shape = get_czi_shape_info(czi_file)

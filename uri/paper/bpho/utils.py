@@ -277,19 +277,24 @@ def czi_predict_images(learn, czi_in, dest, category, tag=None, size=128, max_im
         
 
         img_max = data.max()
-        print(img_max)
-        for c in channels:
-            for z in depths:
+        print(f'czi: x:{x} y:{y} t:{times} c:{channels} z:{depths} {img_max}')
+
+        channels_bar = progress_bar(range(channels)) if channels > 1 else range(channels)
+        depths_bar = progress_bar(range(depths)) if depths > 1 else range(depths)
+        times_bar = progress_bar(range(times)) if times > 1 else range(times)
+
+        for c in channels_bar:
+            for z in depths_bar:
                 preds = []
                 origs = []
-                if (len(depths) > 1) or (len(channels) > 1):
+                if (depths > 1) or (channels > 1):
                     pred_out = dest_folder/f'{czi_in.stem}_c{c:02d}_z{z:02d}_{under_tag}_pred.tif'
                     orig_out = dest_folder/f'{czi_in.stem}_c{c:02d}_z{z:02d}_{under_tag}_orig.tif'
                 else:
                     pred_out = dest_folder/f'{czi_in.stem}_{under_tag}_pred.tif'
                     orig_out = dest_folder/f'{czi_in.stem}_{under_tag}_orig.tif'
                 if not pred_out.exists():
-                    for t in progress_bar(list(range(times))):
+                    for t in times_bar:
                         idx = build_index(proc_axes, {'T': t, 'C': 0, 'Z':0, 'X':slice(0,x),'Y':slice(0,y)})
                         img = data[idx].copy()
                         img /= img_max

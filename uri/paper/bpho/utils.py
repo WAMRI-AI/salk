@@ -306,7 +306,7 @@ def tif_predict_images(learn,
         imageio.mimwrite(orig_out, all_y, bigtiff=True)
 
 
-def czi_predict_images(learn,
+def czi_predict_images(learn
                        czi_in,
                        dest,
                        category,

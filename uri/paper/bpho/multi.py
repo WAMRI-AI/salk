@@ -38,7 +38,7 @@ class MultiImage(ItemBase):
     def _repr_png_(self):
         return self._repr_image_format('png')
 
-    def _repr_jpeg_auto-completion-enable-help-tooltip(self):
+    def _repr_jpeg_(self):
         return self._repr_image_format('jpeg')
 
     def _repr_image_format(self, format_str):

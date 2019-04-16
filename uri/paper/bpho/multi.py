@@ -5,7 +5,6 @@ from fastai.vision import *
 __all__ = ['MultiImage', 'MultiImageImageList', 'MultiImageDataBunch']
 
 
-
 class MultiImage(ItemBase):
     def __init__(self, img_list):
         self.img_list = img_list
@@ -78,7 +77,6 @@ def _multi_normalize_batch(b: Tuple[Tensor, Tensor],
     if do_x: x = multi_normalize(x, mean, std)
     if do_y and len(y.shape) == 4: y = multi_normalize(y, mean, std)
     return x, y
-
 
 def multi_normalize_funcs(mean: FloatTensor,
                           std: FloatTensor,

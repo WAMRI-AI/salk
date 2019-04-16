@@ -1,4 +1,4 @@
-other
+/TAGS
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -16,6 +16,6 @@ __pycache__/
 *.tif
 *.tiff
 *.mp4
-models/
+*.pth
 
 .vscode

@@ -8,7 +8,17 @@ from scipy.ndimage.interpolation import zoom as npzoom
 from .czi import get_czi_shape_info, build_index, is_movie
 from fastai.vision import *
 
-__all__ = ['czi_movie_to_synth', 'tif_to_synth']
+__all__ = ['simple_crap', 'czi_movie_to_synth', 'tif_to_synth']
+
+
+def simple_crap(img, down_scale=4, up_scale=4, add_noise=True):
+    img = img[0]
+    img = npzoom(img, 1/down_scale, order=0)
+    if add_noise:
+        img = random_noise(img, mode='speckle', var=0.02, clip=True)
+    img = npzoom(img, up_scale, order=0)
+    return img[None].astype(np.float32).copy()
+
 
 def new_crappify(img, add_noise=True, scale=4):
     "a crappifier for our microscope images"

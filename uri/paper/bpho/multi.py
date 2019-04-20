@@ -2,7 +2,7 @@ from numbers import Integral
 from fastai import *
 from fastai.vision import *
 
-__all__ = ['MultiImage', 'MultiImageImageList', 'MultiImageDataBunch']
+__all__ = ['MultiImage', 'MultiImageImageList', 'MultiImageDataBunch', 'NpyRawImageList']
 
 
 class MultiImage(ItemBase):
@@ -166,6 +166,11 @@ class NpyRawImageList(ImageList):
 
     def reconstruct(self, t):
         return Image(t.float().clamp(min=0, max=1))
+
+    @classmethod
+    def from_folder(cls, path:PathOrStr='.', extensions:Collection[str]=None, **kwargs)->ItemList:
+        extensions = ifnone(extensions, ['.npy'])
+        return super().from_folder(path=path, extensions=extensions, **kwargs)
 
 
 class MultiImageImageList(MultiImageList):

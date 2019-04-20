@@ -49,6 +49,7 @@ class CziImageList(ImageList):
     def __init__(self, *args, **kwargs):
         if args:
             czi_files = args[0]
+            print('type:', type(czi_files[0]))
             items = []
             for fn in czi_files:
                 if is_czi(fn):
@@ -62,8 +63,8 @@ class CziImageList(ImageList):
             super().__init__(*args, **kwargs)
     
     def build_tif_items(self, tif_fn):
-       img = PIL.Image.open(tif_fn)
-       n_frames = img.n_frames
+       with PIL.Image.open(tif_fn) as img:
+           n_frames = img.n_frames
        items = []
        for t in range(n_frames):
            items.append((tif_fn, t))

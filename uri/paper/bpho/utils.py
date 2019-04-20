@@ -1,6 +1,7 @@
 "utility methods for generating movies from learners"
 from fastai import *
 from fastai.vision import *
+import shutil
 from skimage.io import imsave
 import PIL
 import imageio
@@ -15,8 +16,10 @@ import torch
 import math
 from .multi import MultiImage
 import pyvips
+from time import sleep
 
-__all__ = ['generate_movies', 'generate_tifs']
+
+__all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders']
 
 
 def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
@@ -528,3 +531,16 @@ def generate_tifs(src, dest, learn, size, tag=None, max_imgs=None):
                                max_imgs=max_imgs)
         #  except:
         #      print(f'exception with {fn.stem}')
+
+
+def ensure_folder(fldr, clean=False):
+    fldr = Path(fldr)
+    if fldr.exists() and clean: 
+        print(f'wiping {fldr.stem} in 5 seconds')
+        sleep(5.)
+        shutil.rmtree(fldr)
+    if not fldr.exists(): fldr.mkdir(parents=True, mode=0o775, exist_ok=True)
+    return fldr
+
+def subfolders(p):
+    return [sub for sub in p.iterdir() if sub.is_dir()]

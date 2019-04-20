@@ -1,11 +1,12 @@
 "utility classes for creating tiles form imagelist images"
 from fastai import *
 from fastai.vision import *
+from fastprogress import progress_bar
 
 __all__ = ['TileImageTileImageList', 'TileImageList']
 
 def get_image_list_shapes(imlist):
-    shapes = [(img_i, fn, imlist.open(fn).shape) for img_i, fn in enumerate(imlist.items)]
+    shapes = [(img_i, fn, imlist.open(fn).shape) for img_i, fn in progress_bar(list(enumerate(imlist.items)))]
     return shapes
 
 def make_tile_info(shapes, tile_sz, num_tiles):
@@ -62,6 +63,9 @@ class TileImageList(ImageList):
         if self.crap_func: img_data = self.crap_func(img_data.numpy())
         return Image(tensor(img_data))
 
+    def _get_by_folder(self, name):
+        return [i for i in range_of(self) if self.items[i][1][0].parts[-2] == name]
+
     def _label_from_list(self, labels, label_cls=None, from_item_lists=False, **kwargs)->'LabelList':
         "Label `self.items` with `labels`."
         if not from_item_lists: 
@@ -83,6 +87,7 @@ class TileImageList(ImageList):
                       path=self.path, **kwargs)
         res = self._label_list(x=self, y=y)
         return res
+
 
 class TileImageTileImageList(TileImageList):
     "`ItemList` suitable for `Image` to `Image` tasks."

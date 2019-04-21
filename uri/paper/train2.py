@@ -2,7 +2,7 @@ import yaml
 yaml.warnings({'YAMLLoadWarning': False})
 from fastai.script import *
 from fastai.vision import *
-from fastai.vision.models.wrn import wrn_22
+from fastai.callbacks import * 
 from fastai.distributed import *
 from fastai.vision.models.xresnet import *
 from fastai.vision.models.unet import DynamicUnet

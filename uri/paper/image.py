@@ -82,7 +82,7 @@ arch = xresnet50
 
 data = get_data(bs, size, lrup_tifs, hr_tifs)
 learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
-learn.load(f'distrib2').to_fp16()
+learn.load(f'distrib2_best').to_fp16()
 gc.collect()
 
 

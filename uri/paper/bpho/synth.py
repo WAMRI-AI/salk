@@ -190,31 +190,111 @@ def czi_movie_to_synth(czi_fn,
                        n_tiles=5,
                        n_frames=5,
                        crappify_func=None):
-    hr_dir = ensure_folder(dest / 'hr' / mode)
-    lr_dir = ensure_folder(dest / 'lr' / mode)
-    lrup_dir = ensure_folder(dest / 'lrup' / mode)
     base_name = czi_fn.stem
+    if single or tiles:
+        hr_dir = ensure_folder(dest / 'hr' / mode)
+        lr_dir = ensure_folder(dest / 'lr' / mode)
+        lrup_dir = ensure_folder(dest / 'lrup' / mode)
+        with czifile.CziFile(czi_fn) as czi_f:
+            data = czi_f.asarray()
+            axes, shape = get_czi_shape_info(czi_f)
+            channels = shape['C']
+            depths = shape['Z']
+            times = shape['T']
+            x,y = shape['X'], shape['Y']
 
-    with czifile.CziFile(czi_fn) as czi_f:
-        data = czi_f.asarray()
-        axes, shape = get_czi_shape_info(czi_f)
-        channels = shape['C']
-        depths = shape['Z']
-        times = shape['T']
-        x,y = shape['X'], shape['Y']
+            for channel in range(channels):
+                for depth in range(depths):
+                    for t in range(times):
+                        save_name = f'{base_name}_{category}_{channel:02d}_{depth:02d}_{t:06d}'
+                        idx = build_index( axes, {'T': t, 'C':channel, 'Z': depth, 'X':slice(0,x), 'Y':slice(0,y)})
+                        img_data = data[idx].astype(np.float32).copy()
+                        img_max = img_data.max()
+                        if img_max != 0: img_data /= img_max
 
-        for channel in range(channels):
-            for depth in range(depths):
-                for t in range(times):
-                    save_name = f'{base_name}_{category}_{channel:02d}_{depth:02d}_{t:06d}'
-                    idx = build_index( axes, {'T': t, 'C':channel, 'Z': depth, 'X':slice(0,x), 'Y':slice(0,y)})
+                        image_to_synth(img_data, dest, mode, hr_dir, lr_dir, lrup_dir, save_name, 
+                                    single, multi, tiles, n_tiles, n_frames, scale, crappify_func)
+
+    elif multi:
+        hr_mz_dir = ensure_folder(dest / f'hr_mz_{n_frames:02d}' / mode)
+        lr_mz_dir = ensure_folder(dest / f'lr_mz_{n_frames:02d}' / mode)
+        lrup_mz_dir = ensure_folder(dest / f'lrup_mz_{n_frames:02d}' / mode)
+
+        hr_mt_dir = ensure_folder(dest / f'hr_mt_{n_frames:02d}' / mode)
+        lr_mt_dir = ensure_folder(dest / f'lr_mt_{n_frames:02d}' / mode)
+        lrup_mt_dir = ensure_folder(dest / f'lrup_mt_{n_frames:02d}' / mode)
+
+        with czifile.CziFile(czi_fn) as czi_f:
+            proc_axes, proc_shape = get_czi_shape_info(czi_f)
+            channels = proc_shape['C']
+            depths = proc_shape['Z']
+            times = proc_shape['T']
+            x,y = proc_shape['X'], proc_shape['Y']
+            data = czi_f.asarray()
+            for channel in range(channels):
+                img_max = None
+                timerange = list(range(0,times-n_frames+1, n_frames))
+                if len(timerange) >= n_frames:
+                    for time_col in progress_bar(timerange):
+                        save_name = f'{base_name}_{channel:02d}_T{time_col:05d}-{(time_col+n_frames-1):05d}'
+                        idx = build_index(proc_axes, {'T': slice(time_col,time_col+n_frames), 'C': channel, 'X':slice(0,x),'Y':slice(0,y)})
+                        img_data = data[idx].astype(np.float32).copy()
+                        img_max = img_data.max()
+                        if img_max != 0: img_data /= img_max
+
+                        _,h,w = img_data.shape
+                        adjh, adjw = (h//4) * 4, (w//4)*4
+                        hr_imgs = img_data[:,0:adjh, 0:adjw]
+                        lr_imgs = []
+                        lrup_imgs = []
+
+                        for i in range(hr_imgs.shape[0]):
+                            hr_img = hr_imgs[i]
+                            crap_img = crappify_func(hr_img).astype(np.float32).copy() if crappify_func else hr_img
+                            lr_img = npzoom(crap_img, 1/scale, order=0).astype(np.float32).copy()
+                            lr_imgs.append(lr_img)
+                            lrup_img = npzoom(lr_img, scale, order=0).astype(np.float32).copy()
+                            lrup_imgs.append(lrup_img)
+
+                        lr_imgs = np.array(lr_imgs).astype(np.float32).copy()
+                        lrup_imgs = np.array(lrup_imgs).astype(np.float32).copy()
+                        hr_img = hr_imgs[hr_imgs.shape[0]//2].astype(np.float32).copy()
+                        hr_mt_name, lr_mt_name, lrup_mt_name = [d / save_name for d in [hr_mt_dir, lr_mt_dir, lrup_mt_dir]]
+                        np.save(hr_mt_name, hr_img)
+                        np.save(lr_mt_name, lr_imgs)
+                        np.save(lrup_mt_name, lrup_imgs)
+                if depths >= n_frames:
+                    mid_depth = depths // 2
+                    start_depth = mid_depth - n_frames//2
+                    end_depth = mid_depth + n_frames//2
+                    depthrange = slice(start_depth,end_depth+1)
+                    save_name = f'{base_name}_{channel:02d}_Z{start_depth:05d}-{end_depth:05d}'
+                    idx = build_index(proc_axes, {'Z': depthrange, 'C': channel, 'X':slice(0,x),'Y':slice(0,y)})
                     img_data = data[idx].astype(np.float32).copy()
                     img_max = img_data.max()
                     if img_max != 0: img_data /= img_max
 
+                    _,h,w = img_data.shape
+                    adjh, adjw = (h//4) * 4, (w//4)*4
+                    hr_imgs = img_data[:,0:adjh, 0:adjw]
+                    lr_imgs = []
+                    lrup_imgs = []
 
-                    image_to_synth(img_data, dest, mode, hr_dir, lr_dir, lrup_dir, save_name, 
-                                   single, multi, tiles, n_tiles, n_frames, scale, crappify_func)
+                    for i in range(hr_imgs.shape[0]):
+                        hr_img = hr_imgs[i]
+                        crap_img = crappify_func(hr_img).astype(np.float32).copy() if crappify_func else hr_img
+                        lr_img = npzoom(crap_img, 1/scale, order=0).astype(np.float32).copy()
+                        lr_imgs.append(lr_img)
+                        lrup_img = npzoom(lr_img, scale, order=0).astype(np.float32).copy()
+                        lrup_imgs.append(lrup_img)
+
+                    lr_imgs = np.array(lr_imgs).astype(np.float32).copy()
+                    lrup_imgs = np.array(lrup_imgs).astype(np.float32).copy()
+                    hr_img = hr_imgs[hr_imgs.shape[0]//2].astype(np.float32).copy()
+                    hr_mz_name, lr_mz_name, lrup_mz_name = [d / save_name for d in [hr_mz_dir, lr_mz_dir, lrup_mz_dir]]
+                    np.save(hr_mz_name, hr_img)
+                    np.save(lr_mz_name, lr_imgs)
+                    np.save(lrup_mz_name, lrup_imgs)
 
 
 def tif_movie_to_synth(tif_fn,
@@ -276,6 +356,7 @@ def image_to_synth(img_data, dest, mode, hr_dir, lr_dir, lrup_dir, save_name, si
     crap_img = crappify_func(hr_img).astype(np.float32).copy() if crappify_func else hr_img 
     lr_img = npzoom(crap_img, 1/scale, order=0).astype(np.float32).copy()
     lrup_img = npzoom(lr_img, scale, order=0).astype(np.float32).copy()
+
     if single:
         hr_name, lr_name, lrup_name = [d / save_name for d in [hr_dir, lr_dir, lrup_dir]]
         save_img(hr_name, hr_img)

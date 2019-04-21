@@ -1,3 +1,4 @@
+
 import yaml
 yaml.warnings({'YAMLLoadWarning': False})
 from fastai.script import *
@@ -10,6 +11,8 @@ from bpho import *
 
 
 torch.backends.cudnn.benchmark = True
+
+
 
 
 datasetname = 'foo_001'
@@ -33,7 +36,7 @@ def get_src(x_data, y_data_):
     def map_to_hr(x):
         hr_name = x.relative_to(x_data)
         return y_data_/hr_name
-    
+
     src = (NpyRawImageList
             .from_folder(x_data)
             .split_by_rand_pct()
@@ -58,34 +61,34 @@ def do_fit(learn, save_name, lrs=slice(1e-3), pct_start=0.9, cycle_len=10):
     num_rows = min(learn.data.batch_size, 3)
 
 
-@call_parse
-def main( 
-    gpu:Param("GPU to run on", str)=None 
-):
-    """Distrubuted training: python -m fastai.launch train.py"""
-    gpu = setup_distrib(gpu)
-    n_gpus = num_distrib()
 
 
-    step = 0
-    lr = 1e-4
-    cycles = 2
-    loss = F.mse_loss
-    metrics = sr_metrics
+test_fns = []
+test_fns += list(datasources.glob('**/test/*.tif'))
+test_fns += list(datasources.glob('**/test/*.czi'))
+
+# test_fns = test_fns[0:1]
+
+step = 0
+lr = 1e-4
+cycles = 2
+loss = F.mse_loss
+metrics = sr_metrics
+
+bs = 1
+size = 256
+max_zoom = 2
+arch = xresnet18
+
+data = get_data(bs, size, lrup_tifs, hr_tifs)
+learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
+learn.load(f'distrib').to_fp16()
+gc.collect()
 
 
-    bs = 8 * n_gpus
-    size = 256
-    arch = xresnet18
 
-    data = get_data(bs, size, lrup_tifs, hr_tifs)
-    learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
-    gc.collect()
-
-    if gpu is None: learn.model = nn.DataParallel(learn.model)
-    else: learn.to_distributed(gpu)
-    learn.to_fp16()
-    learn.fit_one_cycle(cycles, lr)
-    learn.save('distrib')
-
+dest = Path('/DATA/temp/')
+shutil.rmtree(dest)
+dest.mkdir(exist_ok=True, parents=True)
+generate_tifs(test_fns, dest, learn, size, tag=mname, max_imgs=10)
 

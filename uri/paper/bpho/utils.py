@@ -90,9 +90,9 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap=32)
     for x_tile in range(0,math.ceil(w/step_sz)):
         for y_tile in range(0,math.ceil(h/step_sz)):
             x_start = x_tile*step_sz
-            x_end = min(x_start + tile_sz, h)
+            x_end = min(x_start + tile_sz, w)
             y_start = y_tile*step_sz
-            y_end = min(y_start + tile_sz, w)
+            y_end = min(y_start + tile_sz, h)
             src_tile = in_img[y_start:y_end,x_start:x_end]
             mask = make_mask(src_tile.shape, overlap,
                             top=y_start!=0,
@@ -102,14 +102,15 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap=32)
             in_tile = torch.zeros((1, tile_sz, tile_sz))
             in_x_size = x_end - x_start
             in_y_size = y_end - y_start
+            if (in_y_size, in_x_size) != src_tile.shape: set_trace() 
             in_tile[0,0:in_y_size, 0:in_x_size] = tensor(src_tile)
             out_tile, _, _ = learn.predict(Image(in_tile))
             out_tile = (out_tile.data[0].numpy() * 255.).astype(np.uint8)
             combined = np.stack([out_tile[0:in_y_size, 0:in_x_size]]*3 +[mask]).transpose(1,2,0)
             t_img = PIL.Image.fromarray(combined, mode='RGBA')
             assembled.paste(t_img, box=(x_start,y_start))
-    assembled.convert('L')
-    return np.array(assembled)
+    out_img = np.array(assembled.convert('L'))
+    return out_img
 
 
 
@@ -443,13 +444,14 @@ def generate_tifs(src, dest, learn, size, tag=None, max_imgs=None):
                                 size=size,
                                 tag=tag,
                                 max_imgs=max_imgs)
-        except:
+        except Exception as e:
              print(f'exception with {fn.stem}')
+             print(e)
 
 
 def ensure_folder(fldr, clean=False):
     fldr = Path(fldr)
-    if fldr.exists() and clean: 
+    if fldr.exists() and clean:
         print(f'wiping {fldr.stem} in 5 seconds')
         sleep(5.)
         shutil.rmtree(fldr)

@@ -76,13 +76,13 @@ loss = F.mse_loss
 metrics = sr_metrics
 
 bs = 1
-size = 256
+size = 512
 max_zoom = 2
-arch = xresnet18
+arch = xresnet50
 
 data = get_data(bs, size, lrup_tifs, hr_tifs)
 learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
-learn.load(f'distrib').to_fp16()
+learn.load(f'distrib2').to_fp16()
 gc.collect()
 
 

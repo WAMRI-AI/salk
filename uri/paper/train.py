@@ -33,7 +33,7 @@ def get_src(x_data, y_data_):
     def map_to_hr(x):
         hr_name = x.relative_to(x_data)
         return y_data_/hr_name
-    
+
     src = (NpyRawImageList
             .from_folder(x_data)
             .split_by_rand_pct()
@@ -59,8 +59,8 @@ def do_fit(learn, save_name, lrs=slice(1e-3), pct_start=0.9, cycle_len=10):
 
 
 @call_parse
-def main( 
-    gpu:Param("GPU to run on", str)=None 
+def main(
+    gpu:Param("GPU to run on", str)=None
 ):
     """Distrubuted training: python -m fastai.launch train.py"""
     gpu = setup_distrib(gpu)
@@ -74,9 +74,9 @@ def main(
     metrics = sr_metrics
 
 
-    bs = 8 * n_gpus
+    bs = 4 * n_gpus
     size = 256
-    arch = xresnet18
+    arch = xresnet50
 
     data = get_data(bs, size, lrup_tifs, hr_tifs)
     learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
@@ -87,5 +87,3 @@ def main(
     learn.to_fp16()
     learn.fit_one_cycle(cycles, lr)
     learn.save('distrib')
-
-

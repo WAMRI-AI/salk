@@ -73,12 +73,15 @@ def main(
     metrics = sr_metrics
 
 
-    bs = 2 * n_gpus
+    bs = 1 * n_gpus
     size = 512
-    arch = xresnet18
+    arch = xresnet50
 
     data = get_data(bs, size, lrup_tifs, hr_tifs)
-    learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
+    callback_fns = []
+    callback_fns.append(partial(SaveModelCallback, name=f'distrib2_best'))
+
+    learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
     gc.collect()
     learn = learn.load('distrib')
     if gpu is None: learn.model = nn.DataParallel(learn.model)

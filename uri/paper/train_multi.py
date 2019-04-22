@@ -39,8 +39,8 @@ def do_fit(learn, save_name, lrs=slice(1e-3), pct_start=0.9, cycle_len=10):
     learn.to_fp16().fit_one_cycle(cycle_len, lrs, pct_start=pct_start)
     learn.save(save_name)
     print(f'saved: {save_name}')
-    num_rows = min(learn.data.batch_size, 3)
-    learn.to_fp32().show_results(rows=num_rows, imgsize=5)
+    #num_rows = min(learn.data.batch_size, 3)
+    #learn.to_fp32().show_results(rows=num_rows, imgsize=5)
 
 
 def get_model(in_c, out_c, arch):
@@ -79,6 +79,7 @@ def main(
     model_dir = 'models'
 
     gpu = setup_distrib(gpu)
+    print('on gpu: ', gpu)
     n_gpus = num_distrib()
 
     loss = F.mse_loss
@@ -88,14 +89,21 @@ def main(
     size = size
     arch = eval(arch)
     data = get_data(bs, size, lrup_multi_tifs, hr_multi_tifs)
-    callback_fns = []
-    callback_fns.append(partial(SaveModelCallback, name=f'{save_name}_best'))
-    learn = xres_unet_learner(data, arch, in_c=n_frames, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
+    if gpu == 0 or gpu is None:
+        callback_fns = []
+        callback_fns.append(partial(SaveModelCallback, name=f'{save_name}_best'))
+        learn = xres_unet_learner(data, arch, in_c=n_frames, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
+    else:
+        learn = xres_unet_learner(data, arch, in_c=n_frames, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
     gc.collect()
 
-    if load_name: learn.load(load_name)
+    if load_name: 
+        learn.load(load_name)
+        print(f'loaded {load_name}')
     if gpu is None: learn.model = nn.DataParallel(learn.model)
     else: learn.to_distributed(gpu)
-    learn.to_fp16()
+    learn = learn.to_fp16()
     learn.fit_one_cycle(cycles, lr)
-    learn.save(save_name)
+    if gpu == 0 or gpu is None:
+        learn.save(save_name)
+        print(f'saved: {save_name}')

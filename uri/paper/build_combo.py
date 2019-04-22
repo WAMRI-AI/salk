@@ -73,7 +73,7 @@ def build_from_datasource(src, dest, single=False, multi=False, tiles=None, scal
         items = list(src_dir.iterdir()) if src_dir.exists() else []
         if items:
             for p in progress_bar(items, parent=mbar):
-                mbar.child.comment = mode 
+                mbar.child.comment = mode
                 try:
                     process_item(p,
                                  category,
@@ -86,8 +86,9 @@ def build_from_datasource(src, dest, single=False, multi=False, tiles=None, scal
                                  n_tiles=n_tiles,
                                  n_frames=n_frames,
                                  crappify_func=crappify_func)
-                except:
+                except Exception as ex:
                     print(f'err procesing: {p}')
+                    print(ex)
 
 @call_parse
 def main(out: Param("dataset folder", Path, required=True),

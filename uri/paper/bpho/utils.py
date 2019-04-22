@@ -275,10 +275,11 @@ def czi_predict_movie(learn,
                              bigtiff=True)  #, fps=30, macro_block_size=None)
 
 
-def generate_movies(movie_files, learn, size, wsize=5):
+def generate_movies(dest_dir, movie_files, learn, size, wsize=5):
     for fn in progress_bar(movie_files):
-        pred_name = f'{fn.stem}_pred.tif'
-        orig_name = f'{fn.stem}_orig.tif'
+        ensure_folder(dest_dir)
+        pred_name = dest_dir/f'{fn.stem}_pred.tif'
+        orig_name = dest_dir/f'{fn.stem}_orig.tif'
         if not Path(pred_name).exists():
             if fn.suffix == '.czi':
                 #  print(f'czi {fn.stem}')

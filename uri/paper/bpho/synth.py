@@ -11,11 +11,19 @@ from .czi import get_czi_shape_info, build_index, is_movie
 from .utils import ensure_folder
 from fastai.vision import *
 
-__all__ = ['speckle_crap', 'czi_movie_to_synth', 'tif_movie_to_synth']
+__all__ = ['speckle_crap', 'classic_crap', 'czi_movie_to_synth', 'tif_movie_to_synth']
 
 
 def speckle_crap(img):
     img = random_noise(img, mode='speckle', var=0.02, clip=True)
+    return img
+
+
+def classic_crap(img):
+    img = random_noise(img, mode='salt', amount=0.005)
+    img = random_noise(img, mode='pepper', amount=0.005)
+    lvar = filters.gaussian(img, sigma=5) + 1e-6
+    img = random_noise(img, mode='localvar', local_vars=lvar * 0.5)
     return img
 
 

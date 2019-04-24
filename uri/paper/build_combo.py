@@ -3,6 +3,7 @@ import yaml
 yaml.warnings({'YAMLLoadWarning': False})
 
 from fastai.script import *
+from fastai.vision import *
 from bpho import *
 from pathlib import Path
 from fastprogress import master_bar, progress_bar
@@ -53,16 +54,19 @@ def just_copy(item, category, mode, dest):
 
 
 def process_item(item, category, mode, dest, single, multi, tiles, scale, n_tiles, n_frames, crappify_func):
-    if mode == 'test': just_copy(item, category, mode, dest)
-    else:
-        item_map = {
-            '.tif': process_tif,
-            '.tiff': process_tif,
-            '.czi': process_czi,
-        }
-        map_f = item_map.get(item.suffix, process_unk)
-        map_f(item, category, mode, dest, single, multi, tiles, scale, n_tiles, n_frames, crappify_func)
-
+    try:
+        if mode == 'test': just_copy(item, category, mode, dest)
+        else:
+            item_map = {
+                '.tif': process_tif,
+                '.tiff': process_tif,
+                '.czi': process_czi,
+            }
+            map_f = item_map.get(item.suffix, process_unk)
+            map_f(item, category, mode, dest, single, multi, tiles, scale, n_tiles, n_frames, crappify_func)
+    except Exception as ex:
+        print(f'err procesing: {p}')
+        print(ex)
 
 def build_from_datasource(src, dest, single=False, multi=False, tiles=None, scale=4, 
                           n_tiles=5, n_frames=5, crappify_func=None, mbar=None):
@@ -74,21 +78,18 @@ def build_from_datasource(src, dest, single=False, multi=False, tiles=None, scal
         if items:
             for p in progress_bar(items, parent=mbar):
                 mbar.child.comment = mode
-                try:
-                    process_item(p,
-                                 category,
-                                 mode,
-                                 dest_dir,
-                                 single=single,
-                                 multi=multi,
-                                 tiles=tiles,
-                                 scale=scale,
-                                 n_tiles=n_tiles,
-                                 n_frames=n_frames,
-                                 crappify_func=crappify_func)
-                except Exception as ex:
-                    print(f'err procesing: {p}')
-                    print(ex)
+                process_item(p,
+                             category=category,
+                             mode=mode,
+                             dest=dest_dir,
+                             single=single,
+                             multi=multi,
+                             tiles=tiles,
+                             scale=scale,
+                             n_tiles=n_tiles,
+                             n_frames=n_frames,
+                             crappify_func=crappify_func)
+
 
 @call_parse
 def main(out: Param("dataset folder", Path, required=True),

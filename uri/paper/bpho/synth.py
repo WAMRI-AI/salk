@@ -150,7 +150,7 @@ def save_tiffs(czi_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs):
         lr_up = lr_up_imgs[tag]
 
         channel, depth, time_col = tag
-        save_name = f'{base_name}_{category}_{channel:02d}_{depth:02d}_{time_col:06d}.tif'
+        save_name = f'{category}_{channel:02d}_{depth:02d}_{time_col:06d}_{base_name}.tif'
         hr_name, lr_name, lr_up_name = [
             d / save_name for d in [hr_dir, lr_dir, lr_up_dir]
         ]
@@ -204,9 +204,9 @@ def make_multi_tiles(tiles, n_tiles, scale, hr_img, lr_imgs, lrup_imgs,
     for tile_sz in tiles:
         for i in range(n_tiles):
             tile_name = f'{save_name}_{i:02d}'
-            hr_dir = ensure_folder(dest/ f'hr_m{axis}_{n_frames:02d}_tiles_{tile_sz:04d}' / mode)
-            lr_dir = ensure_folder(dest/ f'lr_m{axis}_{n_frames:02d}_tiles_{tile_sz:04d}' / mode)
-            lrup_dir = ensure_folder(dest/ f'lrup_m{axis}_{n_frames:02d}_tiles_{tile_sz:04d}' / mode)
+            hr_dir = ensure_folder(dest/ f'hr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / mode)
+            lr_dir = ensure_folder(dest/ f'lr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / mode)
+            lrup_dir = ensure_folder(dest/ f'lrup_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / mode)
 
             box = find_interesting_region(hr_img, tile_sz)
             box //= scale
@@ -247,7 +247,7 @@ def czi_movie_to_synth(czi_fn,
             for channel in range(channels):
                 for depth in range(depths):
                     for t in range(times):
-                        save_name = f'{base_name}_{category}_{channel:02d}_{depth:02d}_{t:06d}'
+                        save_name = f'{category}_{channel:02d}_{depth:02d}_{t:06d}_{base_name}'
                         idx = build_index( axes, {'T': t, 'C':channel, 'Z': depth, 'X':slice(0,x), 'Y':slice(0,y)})
                         img_data = data[idx].astype(np.float32).copy()
                         img_max = img_data.max()
@@ -256,7 +256,7 @@ def czi_movie_to_synth(czi_fn,
                         image_to_synth(img_data, dest, mode, hr_dir, lr_dir, lrup_dir, save_name,
                                     single, multi, tiles, n_tiles, n_frames, scale, crappify_func)
 
-    elif multi:
+    if multi:
         hr_mz_dir = ensure_folder(dest / f'hr_mz_{n_frames:02d}' / mode)
         lr_mz_dir = ensure_folder(dest / f'lr_mz_{n_frames:02d}' / mode)
         lrup_mz_dir = ensure_folder(dest / f'lrup_mz_{n_frames:02d}' / mode)
@@ -276,8 +276,8 @@ def czi_movie_to_synth(czi_fn,
                 img_max = None
                 timerange = list(range(0,times-n_frames+1, n_frames))
                 if len(timerange) >= n_frames:
-                    for time_col in progress_bar(timerange):
-                        save_name = f'{base_name}_{channel:02d}_T{time_col:05d}-{(time_col+n_frames-1):05d}'
+                    for time_col in timerange:
+                        save_name = f'{category}_{channel:02d}_T{time_col:05d}-{(time_col+n_frames-1):05d}_{base_name}'
                         idx = build_index(proc_axes, {'T': slice(time_col,time_col+n_frames), 'C': channel, 'X':slice(0,x),'Y':slice(0,y)})
                         img_data = data[idx].astype(np.float32).copy()
                         img_max = img_data.max()
@@ -313,7 +313,7 @@ def czi_movie_to_synth(czi_fn,
                     start_depth = mid_depth - n_frames//2
                     end_depth = mid_depth + n_frames//2
                     depthrange = slice(start_depth,end_depth+1)
-                    save_name = f'{base_name}_{channel:02d}_Z{start_depth:05d}-{end_depth:05d}'
+                    save_name = f'{category}_{channel:02d}_Z{start_depth:05d}-{end_depth:05d}_{base_name}'
                     idx = build_index(proc_axes, {'Z': depthrange, 'C': channel, 'X':slice(0,x),'Y':slice(0,y)})
                     img_data = data[idx].astype(np.float32).copy()
                     img_max = img_data.max()
@@ -372,7 +372,7 @@ def tif_movie_to_synth(tif_fn,
         for channel in range(channels):
             for depth in range(depths):
                 for t in range(times):
-                    save_name = f'{base_name}_{category}_{channel:02d}_{depth:02d}_{t:06d}'
+                    save_name = f'{category}_{channel:02d}_{depth:02d}_{t:06d}_{base_name}'
                     img.seek(depth)
                     img.load()
                     img_data = np.array(img).astype(np.float32).copy()

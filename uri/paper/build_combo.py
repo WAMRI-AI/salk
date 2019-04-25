@@ -105,7 +105,6 @@ def main(out: Param("dataset folder", Path, required=True),
          crappify: Param("subfolders to skip", str) = None,
          clean: Param("wipe existing data first", action='store_true') = False):
     "generate comobo dataset"
-
     if not (single or multi or tile):
         print('you need to specify one or more output formats')
         return 1
@@ -115,9 +114,6 @@ def main(out: Param("dataset folder", Path, required=True),
         return 1
 
     out = ensure_folder(out, clean=clean)
-
-    if crappify: 
-        crappify_func = eval(crappify)
 
     src_dirs = []
     for src in sources:
@@ -137,5 +133,5 @@ def main(out: Param("dataset folder", Path, required=True),
                               scale=scale,
                               n_tiles=n_tiles,
                               n_frames=n_frames,
-                              crappify_func=crappify_func,
+                              crappify_func=crappify,
                               mbar=mbar)

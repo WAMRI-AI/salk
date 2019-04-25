@@ -26,6 +26,16 @@ def classic_crap(img):
     img = random_noise(img, mode='localvar', local_vars=lvar * 0.5)
     return img
 
+def micro_crappify(img, gauss_sigma = 1, poisson_loop=10): #data: 1 frame; play with sigma?
+    x = img * 255.
+    for n in range(poisson_loop):
+        x = np.random.poisson(np.maximum(0,x).astype(np.int))
+    x = x.astype(np.float32)
+    noise = np.random.normal(0,gauss_sigma,size=x.shape).astype(np.float32)
+    x = np.maximum(0,x+noise)
+    x -= x.min()
+    x /= x.max()
+    return x
 
 def new_crappify(img, add_noise=True, scale=4):
     "a crappifier for our microscope images"
@@ -182,10 +192,13 @@ def draw_tile_bounds(img, bounds):
 
 
 def save_img(fn, img):
-    # np.warnings.filterwarnings('ignore')
-    # PIL.Image.fromarray(img_as_ubyte(img), mode='L').save(f'{fn}.tif')
-    # np.warnings.filterwarnings('default')
-    np.save(fn.with_suffix('.npy'), img, allow_pickle=False)
+    if len(img.shape) == 2:
+        np.warnings.filterwarnings('ignore')
+        PIL.Image.fromarray(img_as_ubyte(img), mode='L').save(f'{fn}.tif')
+        np.warnings.filterwarnings('default')
+    else:
+        img8 = (img * 255.).astype(np.uint8)
+        np.save(fn.with_suffix('.npy'), img8, allow_pickle=False)
 
 
 def find_interesting_region(img, tile_sz):
@@ -198,15 +211,15 @@ def find_interesting_region(img, tile_sz):
         elif tries > (max_tries//2): thresh_pct /= 2
     return np.array([bounds[0].start, bounds[1].start, bounds[0].stop, bounds[1].stop])
 
-def make_multi_tiles(tiles, n_tiles, scale, hr_img, lr_imgs, lrup_imgs,
+def make_multi_tiles(tiles, category, n_tiles, scale, hr_img, lr_imgs, lrup_imgs,
                      save_name, dest, n_frames, mode, axis):
     if not tiles: return
     for tile_sz in tiles:
         for i in range(n_tiles):
-            tile_name = f'{save_name}_{i:02d}'
-            hr_dir = ensure_folder(dest/ f'hr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / mode)
-            lr_dir = ensure_folder(dest/ f'lr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / mode)
-            lrup_dir = ensure_folder(dest/ f'lrup_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / mode)
+            tile_name = f'{i:03d}_{save_name}'
+            hr_dir = ensure_folder(dest/ f'hr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / category / mode)
+            lr_dir = ensure_folder(dest/ f'lr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / category / mode)
+            lrup_dir = ensure_folder(dest/ f'lrup_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / category / mode)
 
             box = find_interesting_region(hr_img, tile_sz)
             box //= scale
@@ -257,14 +270,6 @@ def czi_movie_to_synth(czi_fn,
                                     single, multi, tiles, n_tiles, n_frames, scale, crappify_func)
 
     if multi:
-        hr_mz_dir = ensure_folder(dest / f'hr_mz_{n_frames:02d}' / mode)
-        lr_mz_dir = ensure_folder(dest / f'lr_mz_{n_frames:02d}' / mode)
-        lrup_mz_dir = ensure_folder(dest / f'lrup_mz_{n_frames:02d}' / mode)
-
-        hr_mt_dir = ensure_folder(dest / f'hr_mt_{n_frames:02d}' / mode)
-        lr_mt_dir = ensure_folder(dest / f'lr_mt_{n_frames:02d}' / mode)
-        lrup_mt_dir = ensure_folder(dest / f'lrup_mt_{n_frames:02d}' / mode)
-
         with czifile.CziFile(czi_fn) as czi_f:
             proc_axes, proc_shape = get_czi_shape_info(czi_f)
             channels = proc_shape['C']
@@ -276,8 +281,12 @@ def czi_movie_to_synth(czi_fn,
                 img_max = None
                 timerange = list(range(0,times-n_frames+1, n_frames))
                 if len(timerange) >= n_frames:
+                    hr_mt_dir = ensure_folder(dest / f'hr_mt_{n_frames:02d}' / category / mode)
+                    lr_mt_dir = ensure_folder(dest / f'lr_mt_{n_frames:02d}' / category / mode)
+                    lrup_mt_dir = ensure_folder(dest / f'lrup_mt_{n_frames:02d}' / category / mode)
+
                     for time_col in timerange:
-                        save_name = f'{category}_{channel:02d}_T{time_col:05d}-{(time_col+n_frames-1):05d}_{base_name}'
+                        save_name = f'{channel:02d}_T{time_col:05d}-{(time_col+n_frames-1):05d}_{base_name}'
                         idx = build_index(proc_axes, {'T': slice(time_col,time_col+n_frames), 'C': channel, 'X':slice(0,x),'Y':slice(0,y)})
                         img_data = data[idx].astype(np.float32).copy()
                         img_max = img_data.max()
@@ -305,15 +314,19 @@ def czi_movie_to_synth(czi_fn,
                         np.save(lr_mt_name, lr_imgs)
                         np.save(lrup_mt_name, lrup_imgs)
 
-                        make_multi_tiles(tiles, n_tiles, scale, hr_img, lr_imgs, lrup_imgs,
+                        make_multi_tiles(tiles, category, n_tiles, scale, hr_img, lr_imgs, lrup_imgs,
                                          save_name, dest, n_frames, mode, 't')
 
                 if depths >= n_frames:
+                    hr_mz_dir = ensure_folder(dest / f'hr_mz_{n_frames:02d}' / category / mode)
+                    lr_mz_dir = ensure_folder(dest / f'lr_mz_{n_frames:02d}' / category / mode)
+                    lrup_mz_dir = ensure_folder(dest / f'lrup_mz_{n_frames:02d}' / category / mode)
+
                     mid_depth = depths // 2
                     start_depth = mid_depth - n_frames//2
                     end_depth = mid_depth + n_frames//2
                     depthrange = slice(start_depth,end_depth+1)
-                    save_name = f'{category}_{channel:02d}_Z{start_depth:05d}-{end_depth:05d}_{base_name}'
+                    save_name = f'{channel:02d}_Z{start_depth:05d}-{end_depth:05d}_{base_name}'
                     idx = build_index(proc_axes, {'Z': depthrange, 'C': channel, 'X':slice(0,x),'Y':slice(0,y)})
                     img_data = data[idx].astype(np.float32).copy()
                     img_max = img_data.max()
@@ -341,7 +354,7 @@ def czi_movie_to_synth(czi_fn,
                     np.save(lr_mz_name, lr_imgs)
                     np.save(lrup_mz_name, lrup_imgs)
 
-                    make_multi_tiles(tiles, n_tiles, scale, hr_img, lr_imgs, lrup_imgs,
+                    make_multi_tiles(tiles, category, n_tiles, scale, hr_img, lr_imgs, lrup_imgs,
                                         save_name, dest, n_frames, mode, 'z')
 
 
@@ -379,7 +392,7 @@ def tif_movie_to_synth(tif_fn,
                     img_max = img_data.max()
                     if img_max != 0: img_data /= img_max
 
-                    image_to_synth(img_data, dest, mode, hr_dir, lr_dir, lrup_dir, save_name, 
+                    image_to_synth(img_data, dest, mode, hr_dir, lr_dir, lrup_dir, save_name,
                                    single, multi, tiles, n_tiles, n_frames, scale, crappify_func)
 
 
@@ -399,7 +412,7 @@ def image_to_synth(img_data, dest, mode, hr_dir, lr_dir, lrup_dir, save_name, si
     adjh, adjw = (h//4) * 4, (w//4)*4
     hr_img = img_data[0:adjh, 0:adjw]
 
-    crap_img = crappify_func(hr_img).astype(np.float32).copy() if crappify_func else hr_img 
+    crap_img = crappify_func(hr_img).astype(np.float32).copy() if crappify_func else hr_img
     lr_img = npzoom(crap_img, 1/scale, order=0).astype(np.float32).copy()
     lrup_img = npzoom(lr_img, scale, order=0).astype(np.float32).copy()
 
@@ -424,7 +437,7 @@ def image_to_synth(img_data, dest, mode, hr_dir, lr_dir, lrup_dir, save_name, si
                 hr_tile, bounds = draw_tile(hr_img, tile_sz)
                 if check_tile(hr_tile, thresh, thresh_pct):
                     tile_name = f'{save_name}_{tile_id:03d}'
-                    hr_tile_name, lr_tile_name, lrup_tile_name = [d / tile_name for d 
+                    hr_tile_name, lr_tile_name, lrup_tile_name = [d / tile_name for d
                                                                 in [hr_tile_dir, lr_tile_dir, lrup_tile_dir]]
                     crap_tile = draw_tile_bounds(crap_img, bounds=bounds)
                     lr_tile = npzoom(crap_tile, 1/scale, order=0).astype(np.float32).copy()

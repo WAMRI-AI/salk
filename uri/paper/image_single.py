@@ -56,29 +56,31 @@ def get_model(in_c, out_c, arch):
 
 @call_parse
 def main(
+        load_name: Param("load model name", str, opt=False),
+        src_dir: Param("input image dir", Path, opt=False),
+        dest_dir: Param("output image dir", Path, opt=False),
         gpu: Param("GPU to run on", str)=None,
         arch: Param("encode architecture", str) = 'xresnet18',
-        bs: Param("batch size per gpu", int) = 8,
-        lr: Param("learning rate", float) = 1e-4,
-        size: Param("img size", int) = 512,
-        cycles: Param("num cyles", int) = 5,
-        load_name: Param("load model name", str) = None,
-        save_name: Param("model save name", str) = 'combo',
-        datasetname: Param('dataset name', str) = 'combo_001',
-        tile_sz: Param('tile_sz', int) = 512,
+        size: Param("img size", int) = 256,
+        tile_sz: Param('tile_sz', int) = 512
 ):
+    print('src_dir', src_dir)
+    print('dest_dir', dest_dir)
+    src_dir, dest_dir = Path(src_dir), Path(dest_dir)
+    if not src_dir.exists():
+        print("src_dir doesn't exist")
+        return 1
+
+    datasetname = 'combo_001'
+    bs = 1
+    lr = 1e-4
     data_path = Path('.')
     datasets = data_path/'datasets'
     datasources = data_path/'data'
     dataset = datasets/datasetname
 
-    if tile_sz is None:
-        hr_tifs = dataset/f'hr'
-        lrup_tifs = dataset/f'lrup'
-    else:
-        hr_tifs = dataset/f'hr_t_{tile_sz:d}'
-        lrup_tifs = dataset/f'lrup_t_{tile_sz:d}'
-
+    hr_multi_tifs = dataset/f'hr_t_{tile_sz}'
+    lrup_multi_tifs = dataset/f'lrup_t_{tile_sz}'
     model_dir = 'models'
 
     gpu = setup_distrib(gpu)
@@ -88,16 +90,10 @@ def main(
     loss = F.mse_loss
     metrics = sr_metrics
 
-    bs = bs * n_gpus
     size = size
     arch = eval(arch)
-    data = get_data(bs, size, lrup_tifs, hr_tifs)
-    if gpu == 0 or gpu is None:
-        callback_fns = []
-        callback_fns.append(partial(SaveModelCallback, name=f'{save_name}_best'))
-        learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
-    else:
-        learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
+    data = get_data(bs, size, lrup_multi_tifs, hr_multi_tifs)
+    learn = xres_unet_learner(data, arch, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
     gc.collect()
 
     if load_name:
@@ -106,11 +102,9 @@ def main(
     if gpu is None: learn.model = nn.DataParallel(learn.model)
     else: learn.to_distributed(gpu)
     learn = learn.to_fp16()
-    learn.fit_one_cycle(cycles, lr)
-    if gpu == 0 or gpu is None:
-        learn.save(save_name)
-        print(f'saved: {save_name}')
-        learn.export(f'{save_name}.pkl')
-        print('exportedh')
 
 
+    movie_files = []
+    movie_files += list(src_dir.glob('**/*.czi'))
+    movie_files += list(src_dir.glob('**/*.tif'))
+    generate_tifs(movie_files, dest_dir, learn, size, tag='load_name', max_imgs=10)

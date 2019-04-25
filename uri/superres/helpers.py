@@ -121,7 +121,7 @@ def copy_tif_files(file_map, dest_dir):
         new_fn = f'{id}_{depth}.tif'
         dest.mkdir(parents=True, mode=0o777, exist_ok=True)
         shutil.copy(fn, dest/new_fn)
-        
+
 def scale_tif_files(file_map, dest_dir, scale=4):
     for (id, depth), fn in file_map.items():
         if id in train_ids: dest = dest_dir/'train'
@@ -144,7 +144,7 @@ def random_crop_tile(base_name, hr_img, lr_img, tile_size, scale, threshold, unt
             th, tw = tile_size, tile_size
             i = random.randint(0, max(0, h - th))
             j = random.randint(0, max(0, w - tw))
-            crop_rect = (j, i, j + tw, i + th) 
+            crop_rect = (j, i, j + tw, i + th)
             small_crop_rect = [i//scale for i in crop_rect]
             hr_crop = hr_img.crop(crop_rect)
             if (np.asarray(hr_crop) > threshold).mean() < 0.05: hr_crop = None
@@ -160,7 +160,7 @@ def random_crop_tile(base_name, hr_img, lr_img, tile_size, scale, threshold, unt
                 hr_crop = 0
                 lr_crop_upsampled = 0
                 return hr_crop, lr_crop, lr_crop_upsampled, flag
-                
+
         lr_crop = lr_img.crop(small_crop_rect)
         lr_crop_upsampled = lr_img.resize(hr_img.size, resample=PIL.Image.BICUBIC).crop(crop_rect)
         return hr_crop, lr_crop, lr_crop_upsampled, flag
@@ -182,7 +182,7 @@ def tif_to_tiles(lr_tif_fn, hr_tif_fn, base_name, hr_ROI_dir, lr_ROI_dir, lr_ROI
     count = 0
     while count < num_tiles:
         save_name = f'{base_name}_{count:02d}.tif'
-        HR_ROI, LR_ROI, LR_ROI_Upsample, flag = random_crop_tile(base_name, hr_img, lr_img, size, 
+        HR_ROI, LR_ROI, LR_ROI_Upsample, flag = random_crop_tile(base_name, hr_img, lr_img, size,
                                                            scale, threshold=threshold, untiled_ls=untiled_ls)
         count = count+1
         if flag == -1: break
@@ -191,7 +191,7 @@ def tif_to_tiles(lr_tif_fn, hr_tif_fn, base_name, hr_ROI_dir, lr_ROI_dir, lr_ROI
         LR_ROI_Upsample.save(lr_ROI_up_dir/save_name)
    # else:
    #     untiled_ls.append(format(hr_tif_fn))
-        
+
 def build_crappify_model(model_path, model, bs, img_size):
     img_data = Path('/scratch/bpho/datasets/paired_001/')
     model_path = Path('/scratch/bpho/models')
@@ -225,8 +225,8 @@ def build_crappify_model(model_path, model, bs, img_size):
 
     data = get_data(bs, img_size, tile_size=img_size)
     wd = 1e-3
-    arch = models.resnet34 
-    learn = unet_learner(data, arch, wd=wd, blur=True, 
+    arch = models.resnet34
+    learn = unet_learner(data, arch, wd=wd, blur=True,
                          norm_type=NormType.Weight, model_dir=model_path)
     gc.collect()
     learn = learn.load(model_name)
@@ -254,8 +254,8 @@ def algo_crappify_movie_to_tifs(czi_fn, hr_dir, lr_dir, lr_up_dir, base_name, ma
                     img = data[idx].astype(np.float)
                     save_fn = f'{base_name}_{channel:02d}_{depth:03d}_{time_col:03d}.tif'
                     if img_max is None: img_max = img.max() * max_scale
-                    if img_max==0: continue #do not save images with no contents.  
-                    img /= img_max             
+                    if img_max==0: continue #do not save images with no contents.
+                    img /= img_max
                     if not max_per_movie: img_max = None
                     img_data = (img*255).astype(float)
 

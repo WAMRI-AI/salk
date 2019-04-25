@@ -151,16 +151,16 @@ def tif_to_synth(tif_fn,
 
 
 def save_tiffs(czi_fn, dest, category, mode, hr_imgs, lr_imgs, lr_up_imgs):
-    hr_dir = dest / 'hr' / mode
-    lr_dir = dest / 'lr' / mode
-    lr_up_dir = dest / 'lr_up' / mode
+    hr_dir = dest / 'hr' / mode / category
+    lr_dir = dest / 'lr' / mode / category
+    lr_up_dir = dest / 'lr_up' / mode / categroy
     base_name = czi_fn.stem
     for tag, hr in hr_imgs.items():
         lr = lr_imgs[tag]
         lr_up = lr_up_imgs[tag]
 
         channel, depth, time_col = tag
-        save_name = f'{category}_{channel:02d}_{depth:02d}_{time_col:06d}_{base_name}.tif'
+        save_name = f'{channel:02d}_{depth:02d}_{time_col:06d}_{base_name}.tif'
         hr_name, lr_name, lr_up_name = [
             d / save_name for d in [hr_dir, lr_dir, lr_up_dir]
         ]
@@ -217,9 +217,9 @@ def make_multi_tiles(tiles, category, n_tiles, scale, hr_img, lr_imgs, lrup_imgs
     for tile_sz in tiles:
         for i in range(n_tiles):
             tile_name = f'{i:03d}_{save_name}'
-            hr_dir = ensure_folder(dest/ f'hr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / category / mode)
-            lr_dir = ensure_folder(dest/ f'lr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / category / mode)
-            lrup_dir = ensure_folder(dest/ f'lrup_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / category / mode)
+            hr_dir = ensure_folder(dest/ f'hr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / mode / category)
+            lr_dir = ensure_folder(dest/ f'lr_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / mode / category)
+            lrup_dir = ensure_folder(dest/ f'lrup_m{axis}_{n_frames:02d}_t_{tile_sz:04d}' / mode / category)
 
             box = find_interesting_region(hr_img, tile_sz)
             box //= scale
@@ -246,9 +246,9 @@ def czi_movie_to_synth(czi_fn,
                        crappify_func=None):
     base_name = czi_fn.stem
     if single:
-        hr_dir = ensure_folder(dest / 'hr' / mode)
-        lr_dir = ensure_folder(dest / 'lr' / mode)
-        lrup_dir = ensure_folder(dest / 'lrup' / mode)
+        hr_dir = ensure_folder(dest / 'hr' / mode / category)
+        lr_dir = ensure_folder(dest / 'lr' / mode / category)
+        lrup_dir = ensure_folder(dest / 'lrup' / mode / category)
         with czifile.CziFile(czi_fn) as czi_f:
             data = czi_f.asarray()
             axes, shape = get_czi_shape_info(czi_f)
@@ -260,7 +260,7 @@ def czi_movie_to_synth(czi_fn,
             for channel in range(channels):
                 for depth in range(depths):
                     for t in range(times):
-                        save_name = f'{category}_{channel:02d}_{depth:02d}_{t:06d}_{base_name}'
+                        save_name = f'{channel:02d}_{depth:02d}_{t:06d}_{base_name}'
                         idx = build_index( axes, {'T': t, 'C':channel, 'Z': depth, 'X':slice(0,x), 'Y':slice(0,y)})
                         img_data = data[idx].astype(np.float32).copy()
                         img_max = img_data.max()
@@ -281,9 +281,9 @@ def czi_movie_to_synth(czi_fn,
                 img_max = None
                 timerange = list(range(0,times-n_frames+1, n_frames))
                 if len(timerange) >= n_frames:
-                    hr_mt_dir = ensure_folder(dest / f'hr_mt_{n_frames:02d}' / category / mode)
-                    lr_mt_dir = ensure_folder(dest / f'lr_mt_{n_frames:02d}' / category / mode)
-                    lrup_mt_dir = ensure_folder(dest / f'lrup_mt_{n_frames:02d}' / category / mode)
+                    hr_mt_dir = ensure_folder(dest / f'hr_mt_{n_frames:02d}' / mode / category)
+                    lr_mt_dir = ensure_folder(dest / f'lr_mt_{n_frames:02d}' / mode / category)
+                    lrup_mt_dir = ensure_folder(dest / f'lrup_mt_{n_frames:02d}' / mode / category)
 
                     for time_col in timerange:
                         save_name = f'{channel:02d}_T{time_col:05d}-{(time_col+n_frames-1):05d}_{base_name}'
@@ -318,9 +318,9 @@ def czi_movie_to_synth(czi_fn,
                                          save_name, dest, n_frames, mode, 't')
 
                 if depths >= n_frames:
-                    hr_mz_dir = ensure_folder(dest / f'hr_mz_{n_frames:02d}' / category / mode)
-                    lr_mz_dir = ensure_folder(dest / f'lr_mz_{n_frames:02d}' / category / mode)
-                    lrup_mz_dir = ensure_folder(dest / f'lrup_mz_{n_frames:02d}' / category / mode)
+                    hr_mz_dir = ensure_folder(dest / f'hr_mz_{n_frames:02d}' / mode / category)
+                    lr_mz_dir = ensure_folder(dest / f'lr_mz_{n_frames:02d}' / mode / category)
+                    lrup_mz_dir = ensure_folder(dest / f'lrup_mz_{n_frames:02d}' / mode / category)
 
                     mid_depth = depths // 2
                     start_depth = mid_depth - n_frames//2
@@ -369,9 +369,9 @@ def tif_movie_to_synth(tif_fn,
                        n_tiles=5,
                        n_frames=5,
                        crappify_func=None):
-    hr_dir = ensure_folder(dest / 'hr' / mode)
-    lr_dir = ensure_folder(dest / 'lr' / mode)
-    lrup_dir = ensure_folder(dest / 'lrup' / mode)
+    hr_dir = ensure_folder(dest / 'hr' / mode / category)
+    lr_dir = ensure_folder(dest / 'lr' / mode / category)
+    lrup_dir = ensure_folder(dest / 'lrup' / mode / category)
     base_name = tif_fn.stem
 
     img = PIL.Image.open(tif_fn)
@@ -385,7 +385,7 @@ def tif_movie_to_synth(tif_fn,
         for channel in range(channels):
             for depth in range(depths):
                 for t in range(times):
-                    save_name = f'{category}_{channel:02d}_{depth:02d}_{t:06d}_{base_name}'
+                    save_name = f'{channel:02d}_{depth:02d}_{t:06d}_{base_name}'
                     img.seek(depth)
                     img.load()
                     img_data = np.array(img).astype(np.float32).copy()

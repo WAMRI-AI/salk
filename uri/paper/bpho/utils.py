@@ -18,7 +18,7 @@ from .multi import MultiImage
 from time import sleep
 
 
-__all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders']
+__all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders', 'build_tile_info', 'generate_tiles']
 
 
 def make_mask(shape, overlap, top=True, left=True, right=True, bottom=True):
@@ -102,7 +102,7 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap=32)
             in_tile = torch.zeros((1, tile_sz, tile_sz))
             in_x_size = x_end - x_start
             in_y_size = y_end - y_start
-            if (in_y_size, in_x_size) != src_tile.shape: set_trace() 
+            if (in_y_size, in_x_size) != src_tile.shape: set_trace()
             in_tile[0,0:in_y_size, 0:in_x_size] = tensor(src_tile)
             out_tile, _, _ = learn.predict(Image(in_tile))
             out_tile = (out_tile.data[0].numpy() * 255.).astype(np.uint8)
@@ -459,5 +459,85 @@ def ensure_folder(fldr, clean=False):
     if not fldr.exists(): fldr.mkdir(parents=True, mode=0o775, exist_ok=True)
     return fldr
 
+
 def subfolders(p):
     return [sub for sub in p.iterdir() if sub.is_dir()]
+
+
+def build_tile_info(data, tile_sz, train_samples, valid_samples, skip_categories = None):
+    if skip_categories == None: skip_categories = []
+
+    def get_category(p):
+        return p.parts[-2]
+
+    def get_mode(p):
+        return p.parts[-3]
+
+    def is_skip(fn):
+        return get_category(fn) in skip_categories
+
+    def get_img_size(p):
+        with PIL.Image.open(p) as img:
+            h,w = img.size
+        return h,w
+
+    all_files = [fn for fn in list(data.glob('**/*.tif')) if not is_skip(fn)]
+    img_sizes = {str(p):get_img_size(p) for p in progress_bar(all_files)}
+
+    files_by_mode = {}
+
+    for p in progress_bar(all_files):
+        category = get_category(p)
+        mode = get_mode(p)
+        mode_list = files_by_mode.get(mode, {})
+        cat_list = mode_list.get(category, [])
+        cat_list.append(p)
+        mode_list[category] = cat_list
+        files_by_mode[mode] = mode_list
+
+    def pull_random_tile_info(mode, tile_sz):
+        files_by_cat = files_by_mode[mode]
+        category=random.choice(list(files_by_cat.keys()))
+        img_file=random.choice(files_by_cat[category])
+        h,w = img_sizes[str(img_file)]
+
+        top = random.choice(range(0,max(1,h-tile_sz)))
+        left = random.choice(range(0,max(1,w-tile_sz)))
+        bottom = min(top + tile_sz,h)
+        right = min(left + tile_sz,w)
+        return {'mode': mode,'category': category,'fn': img_file, 'top':top, 'left':left, 'bottom': bottom, 'right':right}
+
+
+    tile_infos = []
+    for i in range(train_samples):
+        tile_infos.append(pull_random_tile_info('train', tile_sz))
+    for i in range(valid_samples):
+        tile_infos.append(pull_random_tile_info('valid', tile_sz))
+
+    tile_df = pd.DataFrame(tile_infos)[['mode','category','fn','top','left','bottom','right']]
+    return tile_df
+
+
+def generate_tiles(dest_dir, tile_info, crap_dir=None, crap_func=None):
+    dest_dir = ensure_folder(dest_dir)
+    shutil.rmtree(dest_dir)
+
+    last_fn = None
+    tile_info = tile_info.sort_values('fn')
+    for row_id, tile_stats in progress_bar(list(tile_info.iterrows())):
+        mode = tile_stats['mode']
+        fn = tile_stats['fn']
+        if fn != last_fn:
+            img = PIL.Image.open(fn)
+            last_fn = fn
+        box = [tile_stats[fld] for fld in ['left','top','right','bottom']]
+        category = tile_stats['category']
+        crop_img = img.crop(box)
+        tile_folder = ensure_folder(dest_dir/mode/category)
+        crop_img.save(tile_folder/f'{row_id:05d}_{fn.stem}.tif')
+        if crap_func and crap_dir:
+            crap_tile_folder = ensure_folder(crap_dir/mode/category)
+            crap_img = crap_func(crop_img)
+            crap_img.save(crap_tile_folder/f'{row_id:05d}_{fn.stem}.tif')
+
+    tile_info.reset_index().to_csv(dest_dir/'tiles.csv',index=False)

@@ -40,34 +40,35 @@ def default_crap(img, scale=4, upsample=True, gauss_sigma=1, poisson_loop=10):
 @call_parse
 def main(out: Param("dataset folder", Path, required=True),
          sources: Param('src folder', Path, required=True),
-         tile_sz: Param('generated tile size', int, required=True),
+         tile: Param('generated tile size', int, nargs='+', required=True),
          n_train: Param('number of train tiles', int, required=True),
          n_valid: Param('number of validation tiles', int, required=True),
-         crap_dir: Param('crappify output dir', Path) = None,
          crap_func: Param('crappifier name', object) = default_crap,
          scale: Param('amount to scale', int) = 4,
          not_unet: Param('unet style (down and back upsample)', action='store_true') = False,
+         only: Param('limit to these categories', nargs='+') = None,
          skip: Param("categories to skip", str, nargs='+') = ['random', 'centrioles','ArgoSIMDL', 'neurons', 'fixed_neurons'],
          clean: Param("wipe existing data first", action='store_true') = False):
     "generate tiles from source tiffs"
     is_unet = not not_unet
+    up = 'up' if is_unet else ''
+
     if not callable(crap_func):
         print('crap_func is not callable')
         crap_func = None
-        return 1
+        crap_dir = None
     else:
         crap_func = partial(crap_func, scale=scale, upsample=is_unet)
 
     out = ensure_folder(out)
-    if crap_dir:
-        crap_dir = ensure_folder(crap_dir)
-
     if clean:
         shutil.rmtree(out)
-        if crap_dir:
-            shutil.rmtree(crap_dir)
 
-    tile_info = build_tile_info(sources, tile_sz, n_train, n_valid, skip_categories=skip)
-    print(tile_info.groupby('category').fn.count())
-    generate_tiles(out, tile_info,crap_dir=crap_dir, crap_func=crap_func)
+    for tile_sz in tile:
+        hr_dir = ensure_folder(out/f'hr_t_{tile_sz}')
+        crap_dir = ensure_folder(out/f'lr{up}_t_{tile_sz}') if crap_func else None
+
+        tile_info = build_tile_info(sources, tile_sz, n_train, n_valid, only_categories=only, skip_categories=skip)
+        print(tile_info.groupby('category').fn.count())
+        generate_tiles(hr_dir, tile_info, crap_dir=crap_dir, crap_func=crap_func)
     print('finished tiles')

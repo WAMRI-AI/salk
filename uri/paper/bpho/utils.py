@@ -21,17 +21,18 @@ from time import sleep
 __all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders',
            'build_tile_info', 'generate_tiles', 'unet_image_from_tiles_blend']
 
-
 def make_mask(shape, overlap, top=True, left=True, right=True, bottom=True):
     mask = np.full(shape, 1.)
-    h,w = shape
-    for i in range(min(shape[0], shape[0])):
-        for j in range(shape[1]):
-            if top: mask[i,j] = min((i+1)/overlap, mask[i,j])
-            if bottom: mask[h-i-1,j] = min((i+1)/overlap, mask[h-i-1,j])
-            if left: mask[i,j] = min((j+1)/overlap, mask[i,j])
-            if right: mask[i,w-j-1] = min((j+1)/overlap, mask[i,w-j-1])
+    if overlap > 0:
+        h,w = shape
+        for i in range(min(shape[0], shape[0])):
+            for j in range(shape[1]):
+                if top: mask[i,j] = min((i+1)/overlap, mask[i,j])
+                if bottom: mask[h-i-1,j] = min((i+1)/overlap, mask[h-i-1,j])
+                if left: mask[i,j] = min((j+1)/overlap, mask[i,j])
+                if right: mask[i,w-j-1] = min((j+1)/overlap, mask[i,w-j-1])
     return mask.astype(np.uint8)
+
 
 def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
     cur_size = in_img.shape[1:3]
@@ -83,9 +84,10 @@ def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
 
 
 
-def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap=32):
+def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=0.0):
     in_img = npzoom(in_img[0], scale, order=1)
     h,w = in_img.shape
+    overlap = int(max(h,w)*overlap_pct)
     step_sz = tile_sz - overlap
     assembled = PIL.Image.new('RGB',in_img.shape)
     for x_tile in range(0,math.ceil(w/step_sz)):
@@ -465,14 +467,19 @@ def subfolders(p):
     return [sub for sub in p.iterdir() if sub.is_dir()]
 
 
-def build_tile_info(data, tile_sz, train_samples, valid_samples, skip_categories = None):
+def build_tile_info(data, tile_sz, train_samples, valid_samples, only_categories=None, skip_categories=None):
     if skip_categories == None: skip_categories = []
+    if only_categories == None: only_categories = []
+    if only_categories: skip_categories = [c for c in skip_categories if c not in only_categories]
 
     def get_category(p):
         return p.parts[-2]
 
     def get_mode(p):
         return p.parts[-3]
+
+    def is_only(fn):
+        return (not only_categories) or (get_category(fn) in only_categories)
 
     def is_skip(fn):
         return get_category(fn) in skip_categories
@@ -482,7 +489,7 @@ def build_tile_info(data, tile_sz, train_samples, valid_samples, skip_categories
             h,w = img.size
         return h,w
 
-    all_files = [fn for fn in list(data.glob('**/*.tif')) if not is_skip(fn)]
+    all_files = [fn for fn in list(data.glob('**/*.tif')) if is_only(fn) and not is_skip(fn)]
     img_sizes = {str(p):get_img_size(p) for p in progress_bar(all_files)}
 
     files_by_mode = {}
@@ -554,6 +561,7 @@ def generate_tiles(dest_dir, tile_info, crap_dir=None, crap_func=None):
         if fn != last_fn:
             img = PIL.Image.open(fn)
             img_data = np.array(img)
+            img_data /= img_data.max()
             thresh = 0.01
             thresh_pct = (img_data > thresh).mean() * 0.8
             last_fn = fn

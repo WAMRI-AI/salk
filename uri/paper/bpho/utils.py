@@ -18,7 +18,8 @@ from .multi import MultiImage
 from time import sleep
 
 
-__all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders', 'build_tile_info', 'generate_tiles']
+__all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders',
+           'build_tile_info', 'generate_tiles', 'unet_image_from_tiles_blend']
 
 
 def make_mask(shape, overlap, top=True, left=True, right=True, bottom=True):
@@ -500,12 +501,7 @@ def build_tile_info(data, tile_sz, train_samples, valid_samples, skip_categories
         category=random.choice(list(files_by_cat.keys()))
         img_file=random.choice(files_by_cat[category])
         h,w = img_sizes[str(img_file)]
-
-        top = random.choice(range(0,max(1,h-tile_sz)))
-        left = random.choice(range(0,max(1,w-tile_sz)))
-        bottom = min(top + tile_sz,h)
-        right = min(left + tile_sz,w)
-        return {'mode': mode,'category': category,'fn': img_file, 'top':top, 'left':left, 'bottom': bottom, 'right':right}
+        return {'mode': mode,'category': category,'fn': img_file, 'tile_sz': tile_sz, 'h': h, 'w':w}
 
 
     tile_infos = []
@@ -514,11 +510,39 @@ def build_tile_info(data, tile_sz, train_samples, valid_samples, skip_categories
     for i in range(valid_samples):
         tile_infos.append(pull_random_tile_info('valid', tile_sz))
 
-    tile_df = pd.DataFrame(tile_infos)[['mode','category','fn','top','left','bottom','right']]
+    tile_df = pd.DataFrame(tile_infos)[['mode','category','tile_sz','h','w','fn']]
     return tile_df
 
 
+def draw_tile(img, tile_sz):
+    max_x,max_y = img.shape
+    x = random.choice(range(max_x-tile_sz)) if max_x > tile_sz else 0
+    y = random.choice(range(max_y-tile_sz)) if max_y > tile_sz else 0
+    xs = slice(x,min(x+tile_sz, max_x))
+    ys = slice(y,min(y+tile_sz, max_y))
+    tile = img[xs,ys].copy()
+    return tile, (xs,ys)
+
+def check_tile(img, thresh, thresh_pct):
+    return (img > thresh).mean() > thresh_pct
+
+def draw_random_tile(img_data, tile_sz, thresh, thresh_pct):
+    max_tries = 200
+
+    found_tile = False
+    tries = 0
+    while not found_tile:
+        tile, (xs,ys) = draw_tile(img_data, tile_sz)
+        found_tile = check_tile(tile, thresh, thresh_pct)
+        #found_tile = True
+        tries += 1
+        if tries > (max_tries/2): thresh_pct /=2
+        if tries > max_tries: found_tile = True
+    box = [xs.start, ys.start, xs.stop, ys.stop]
+    return PIL.Image.fromarray(tile), box
+
 def generate_tiles(dest_dir, tile_info, crap_dir=None, crap_func=None):
+    tile_data = []
     dest_dir = ensure_folder(dest_dir)
     shutil.rmtree(dest_dir)
 
@@ -529,15 +553,19 @@ def generate_tiles(dest_dir, tile_info, crap_dir=None, crap_func=None):
         fn = tile_stats['fn']
         if fn != last_fn:
             img = PIL.Image.open(fn)
+            img_data = np.array(img)
+            thresh = 0.01
+            thresh_pct = (img_data > thresh).mean() * 0.8
             last_fn = fn
-        box = [tile_stats[fld] for fld in ['left','top','right','bottom']]
+        tile_sz = tile_stats['tile_sz']
         category = tile_stats['category']
-        crop_img = img.crop(box)
+
+        crop_img, box = draw_random_tile(img_data, tile_sz, thresh, thresh_pct)
         tile_folder = ensure_folder(dest_dir/mode/category)
         crop_img.save(tile_folder/f'{row_id:05d}_{fn.stem}.tif')
         if crap_func and crap_dir:
             crap_tile_folder = ensure_folder(crap_dir/mode/category)
             crap_img = crap_func(crop_img)
             crap_img.save(crap_tile_folder/f'{row_id:05d}_{fn.stem}.tif')
-
-    tile_info.reset_index().to_csv(dest_dir/'tiles.csv',index=False)
+        tile_data.append({'tile_id': row_id, 'category': category, 'mode': mode, 'tile_sz': tile_sz, 'box': box, 'fn': fn})
+    pd.DataFrame(tile_data).to_csv(dest_dir/'tiles.csv', index=False)

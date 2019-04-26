@@ -1,28 +1,43 @@
 
 import numpy as np
 from fastai import *
+from fastai.vision import *
+from fastai.callbacks import *
 from scipy.ndimage.interpolation import zoom as npzoom
+from .utils import unet_image_from_tiles_blend
 
 __all__ = ['get_named_processor', 'add_model_processor']
 
 def bilinear(img):
-    return npzoom(img, 4, order=1)
+    pred_img = npzoom(img, 4, order=1)
+    return pred_img
 
 def bicubic(img):
-    return npzoom(img, 4, order=2)
+    pred_img=npzoom(img, 4, order=2)
+    return pred_img
 
 processors = {
     'bilinear': bilinear,
     'bicubic': bicubic
 }
 
-def build_processor(name):
-    print('build learner based processor here')
-    builder = learn_builders.get(name, None)
+def build_processor(name, model_dir):
+    learn = load_learner(model_dir, f'{name}.pkl').to_fp16()
+    tile_sz = int(name.split('_')[-1])
 
-def get_named_processor(name):
+    def learn_processor(img):
+        pred = unet_image_from_tiles_blend(learn, img[None], tile_sz=tile_sz)
+        pred_img = (pred / 255.).astype(np.float32)
+        return pred_img
+
+    return learn_processor
+
+
+def get_named_processor(name, model_dir):
     if not name in processors:
-        build_processor(name)
+        proc = build_processor(name, model_dir)
+        if proc:
+            processors[name] = proc
     proc = processors.get(name, None)
     return proc
 

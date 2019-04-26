@@ -17,10 +17,10 @@ def get_src(x_data, y_data):
         hr_name = x.relative_to(x_data)
         return y_data/hr_name
 
-    src = (NpyRawImageList
-            .from_folder(x_data, extensions=['.npy'])
+    src = (ImageImageList
+            .from_folder(x_data, convert_mode='L')
             .split_by_rand_pct()
-            .label_from_func(map_to_hr, label_cls=NpyRawImageList))
+            .label_from_func(map_to_hr, convert_mode='L'))
     return src
 
 
@@ -48,7 +48,7 @@ def get_model(in_c, out_c, arch):
     model = DynamicUnet(
         body, n_classes=out_c,
         blur=True, blur_final=True,
-        self_attention=True, norm_type=NormType.Weight, 
+        self_attention=True, norm_type=NormType.Weight,
         last_cross=True, bottle=True
     )
     return model
@@ -57,14 +57,14 @@ def get_model(in_c, out_c, arch):
 @call_parse
 def main(
         gpu: Param("GPU to run on", str)=None,
-        arch: Param("encode architecture", str) = 'xresnet18',
+        arch: Param("encode architecture", str) = 'xresnet34',
         bs: Param("batch size per gpu", int) = 8,
         lr: Param("learning rate", float) = 1e-4,
-        size: Param("img size", int) = 512,
+        size: Param("img size", int) = 256,
         cycles: Param("num cyles", int) = 5,
         load_name: Param("load model name", str) = None,
         save_name: Param("model save name", str) = 'combo',
-        datasetname: Param('dataset name', str) = 'combo_001',
+        datasetname: Param('dataset name', str) = 'tiles_002',
         tile_sz: Param('tile_sz', int) = 512,
 ):
     data_path = Path('.')
@@ -79,6 +79,7 @@ def main(
         hr_tifs = dataset/f'hr_t_{tile_sz:d}'
         lrup_tifs = dataset/f'lrup_t_{tile_sz:d}'
 
+    print(hr_tifs, lrup_tifs)
     model_dir = 'models'
 
     gpu = setup_distrib(gpu)
@@ -110,7 +111,5 @@ def main(
     if gpu == 0 or gpu is None:
         learn.save(save_name)
         print(f'saved: {save_name}')
-        learn.export(f'{save_name}.pkl')
-        print('exportedh')
-
-
+        learn.export(f'{save_name}_{size}.pkl')
+        print('exported')

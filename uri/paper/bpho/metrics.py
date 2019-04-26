@@ -5,7 +5,7 @@ from torch.autograd import Variable
 import numpy as np
 from math import exp
 
-__all__ = ['sr_metrics']
+__all__ = ['sr_metrics', 'ssim','psnr']
 
 
 def gaussian(window_size, sigma):

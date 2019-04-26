@@ -97,8 +97,9 @@ def main(
     gc.collect()
 
     if load_name:
-        learn.load(load_name)
+        learn = load_learner('./stats/models/', f'{load_name}.pkl')
         print(f'loaded {load_name}')
+
     if gpu is None: learn.model = nn.DataParallel(learn.model)
     else: learn.to_distributed(gpu)
     learn = learn.to_fp16()

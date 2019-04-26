@@ -71,6 +71,7 @@ def main(
     datasets = data_path/'datasets'
     datasources = data_path/'data'
     dataset = datasets/datasetname
+    pickle_models = data_path/'stats/models'
 
     if tile_sz is None:
         hr_tifs = dataset/f'hr'
@@ -102,14 +103,18 @@ def main(
     gc.collect()
 
     if load_name:
-        learn.load(load_name)
+        learn = learner_load(pickle_models, f'{load_name}.pkl')
         print(f'loaded {load_name}')
+
     if gpu is None: learn.model = nn.DataParallel(learn.model)
     else: learn.to_distributed(gpu)
     learn = learn.to_fp16()
     learn.fit_one_cycle(cycles, lr)
+
     if gpu == 0 or gpu is None:
         learn.save(save_name)
         print(f'saved: {save_name}')
         learn.export(f'{save_name}_{size}.pkl')
+        learn.load(f'{save_name}_best')
+        learn.export(f'{save_name}_best_{size}.pkl')
         print('exported')

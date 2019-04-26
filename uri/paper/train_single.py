@@ -114,7 +114,7 @@ def main(
     if gpu == 0 or gpu is None:
         learn.save(save_name)
         print(f'saved: {save_name}')
-        learn.export(f'{save_name}_{size}.pkl')
+        learn.export(pickle_models/f'{save_name}_{size}.pkl')
         learn.load(f'{save_name}_best')
-        learn.export(f'{save_name}_best_{size}.pkl')
+        learn.export(pickle_models/f'{save_name}_best_{size}.pkl')
         print('exported')

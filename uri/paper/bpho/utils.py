@@ -560,7 +560,7 @@ def generate_tiles(dest_dir, tile_info, crap_dir=None, crap_func=None):
         fn = tile_stats['fn']
         if fn != last_fn:
             img = PIL.Image.open(fn)
-            img_data = np.array(img)
+            img_data = np.array(img).astype(np.float32)
             img_data /= img_data.max()
             thresh = 0.01
             thresh_pct = (img_data > thresh).mean() * 0.8

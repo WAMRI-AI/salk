@@ -541,39 +541,48 @@ def draw_random_tile(img_data, tile_sz, thresh, thresh_pct):
     while not found_tile:
         tile, (xs,ys) = draw_tile(img_data, tile_sz)
         found_tile = check_tile(tile, thresh, thresh_pct)
-        #found_tile = True
+        # found_tile = True
         tries += 1
         if tries > (max_tries/2): thresh_pct /=2
         if tries > max_tries: found_tile = True
     box = [xs.start, ys.start, xs.stop, ys.stop]
     return PIL.Image.fromarray(tile), box
 
-def generate_tiles(dest_dir, tile_info, crap_dir=None, crap_func=None):
+def generate_tiles(dest_dir, tile_info, scale=4, crap_dirs=None, crap_func=None):
     tile_data = []
     dest_dir = ensure_folder(dest_dir)
     shutil.rmtree(dest_dir)
+    if crap_dirs:
+        for crap_dir in crap_dirs.values():
+            if crap_dir:
+                shutil.rmtree(crap_dir)
 
     last_fn = None
     tile_info = tile_info.sort_values('fn')
     for row_id, tile_stats in progress_bar(list(tile_info.iterrows())):
         mode = tile_stats['mode']
         fn = tile_stats['fn']
-        if fn != last_fn:
-            img = PIL.Image.open(fn)
-            img_data = np.array(img).astype(np.float32)
-            img_data /= img_data.max()
-            thresh = 0.01
-            thresh_pct = (img_data > thresh).mean() * 0.8
-            last_fn = fn
         tile_sz = tile_stats['tile_sz']
         category = tile_stats['category']
+        if fn != last_fn:
+            img = PIL.Image.open(fn)
+            img_data = np.array(img)
+            img_max = img_data.max()
+            thresh = 0.01
+            thresh_pct = (img_data.mean() > 1) * 0.5
+            last_fn = fn
+            tile_folder = ensure_folder(dest_dir/mode/category)
+        if crap_dirs:
+            crap_dir = crap_dirs[tile_sz]
+            crap_tile_folder = ensure_folder(crap_dir/mode/category) if crap_dir else None
+        else:
+            crap_tile_folder = None
+            crap_dir = None
 
         crop_img, box = draw_random_tile(img_data, tile_sz, thresh, thresh_pct)
-        tile_folder = ensure_folder(dest_dir/mode/category)
         crop_img.save(tile_folder/f'{row_id:05d}_{fn.stem}.tif')
         if crap_func and crap_dir:
-            crap_tile_folder = ensure_folder(crap_dir/mode/category)
-            crap_img = crap_func(crop_img)
+            crap_img = crap_func(crop_img, scale=scale)
             crap_img.save(crap_tile_folder/f'{row_id:05d}_{fn.stem}.tif')
         tile_data.append({'tile_id': row_id, 'category': category, 'mode': mode, 'tile_sz': tile_sz, 'box': box, 'fn': fn})
     pd.DataFrame(tile_data).to_csv(dest_dir/'tiles.csv', index=False)

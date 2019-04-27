@@ -103,7 +103,8 @@ def main(
     gc.collect()
 
     if load_name:
-        learn = learner_load(pickle_models, f'{load_name}.pkl')
+        learn_loaded = load_learner(pickle_models, f'{load_name}.pkl')
+        learn.model = learn_loaded.model
         print(f'loaded {load_name}')
 
     if gpu is None: learn.model = nn.DataParallel(learn.model)

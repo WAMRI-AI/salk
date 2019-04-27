@@ -14,28 +14,39 @@ import shutil
 import PIL
 PIL.Image.MAX_IMAGE_PIXELS = 99999999999999
 
-from scipy.ndimage.interpolation import zoom as npzoom
-from skimage.util import random_noise, img_as_ubyte
-from skimage import filters
 
-def default_crap(img, scale=4, upsample=True, gauss_sigma=1, poisson_loop=10):
-    h,w = img.size
+def default_crap(img, scale=4, upsample=True, pscale=12, gscale=0.0001):
+    from skimage.transform import rescale
+
+    # pull pixed data from PIL image
     x = np.array(img)
-    for n in range(poisson_loop):
-        x = np.random.poisson(np.maximum(0,x).astype(np.int))
+    multichannel = len(x.shape) > 2
+
+    # remember the range of the original image
+    img_max = x.max()
+
+    # normalize 0-1.0
     x = x.astype(np.float32)
-    noise = np.random.normal(0,gauss_sigma,size=x.shape).astype(np.float32)
-    x = np.maximum(0,x+noise)
-    x -= x.min()
+    x /= float(img_max)
+
+    # downsample the image
+    x = rescale(x, scale=1/scale, order=1, multichannel=multichannel)
+
+    # add poisson and gaussian noise to the image
+    x = np.random.poisson(x * pscale)/pscale
+    x += np.random.normal(0, gscale, size=x.shape)
+    x = np.maximum(0,x)
+
+    # normalize to 0-1.0
     x /= x.max()
-    x *= 255.
-    x = x.astype(np.uint8)
-    x = npzoom(x, 1/scale, order=0)
-    if upsample:
-        new_scale = max(float(h)/x.shape[0], float(w)/x.shape[1])
-        x = npzoom(x, scale, order=0)
-    crap_img = PIL.Image.fromarray(x.astype(np.uint8))
-    return crap_img
+
+    # back to original range of incoming image
+    x *= img_max
+
+    if upsample: x = rescale(x, scale=scale, order=0, multichannel=multichannel)
+
+    return PIL.Image.fromarray(x.astype(np.uint8))
+
 
 @call_parse
 def main(out: Param("dataset folder", Path, required=True),
@@ -64,11 +75,17 @@ def main(out: Param("dataset folder", Path, required=True),
     if clean:
         shutil.rmtree(out)
 
+    tile_infos = []
+    crap_dirs = {}
+
     for tile_sz in tile:
         hr_dir = ensure_folder(out/f'hr_t_{tile_sz}')
-        crap_dir = ensure_folder(out/f'lr{up}_t_{tile_sz}') if crap_func else None
+        crap_dirs[tile_sz] = ensure_folder(out/f'lr{up}_t_{tile_sz}') if crap_func else None
 
         tile_info = build_tile_info(sources, tile_sz, n_train, n_valid, only_categories=only, skip_categories=skip)
-        print(tile_info.groupby('category').fn.count())
-        generate_tiles(hr_dir, tile_info, crap_dir=crap_dir, crap_func=crap_func)
+        tile_infos.append(tile_info)
+    print(tile_infos[0].groupby('category').fn.count())
+
+    tile_df = pd.concat(tile_infos)
+    generate_tiles(hr_dir, tile_df, scale=scale, crap_dirs=crap_dirs, crap_func=crap_func)
     print('finished tiles')

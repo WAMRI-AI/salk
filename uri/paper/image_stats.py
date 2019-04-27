@@ -33,7 +33,9 @@ def calc_stats(pred_img, truth_img):
         w_offset = (pred_img.shape[1] - truth_img.shape[1]) // 2
         pred_img = pred_img[h_offset:-h_offset, w_offset:-w_offset]
     if (pred_img.shape != truth_img.shape):
+        print('unable to match input and ground truth sizes')
         breakpoint()
+
     ssim_val = ssim(tensor(pred_img[None,None]), tensor(truth_img[None,None]), window_size=10)
     psnr_val = psnr(tensor(pred_img[None,None]), tensor(truth_img[None,None]))
     return {'ssim': float(ssim_val), 'psnr': float(psnr_val), 'fid': 0.0}
@@ -63,7 +65,9 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats):
         else:
             img = np.array(img_tif)
             img = (img.astype(np.float32)/255.).copy()
+
             pred_img = proc_func(img)
+
             PIL.Image.fromarray(pred_img).save(out_name)
 
         if not truth_img is None and not pred_img is None:
@@ -99,7 +103,6 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
                     'Y': slice(0, y)
             })
             img = data[idx].copy()
-            img /= img_max
 
             if truth_czi:
                 truth_data = truth_czi.asarray().astype(np.float32) / 255.

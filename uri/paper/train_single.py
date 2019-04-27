@@ -30,7 +30,7 @@ def get_data(bs, size, x_data, y_data, max_zoom=1.1):
     data = (src
             .transform(tfms, size=size)
             .transform_y(tfms, size=size)
-            .databunch(bs=bs))
+            .databunch(bs=bs).normalize(do_y=True))
     data.c = 3
     return data
 

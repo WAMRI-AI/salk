@@ -19,7 +19,8 @@ from time import sleep
 
 
 __all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders',
-           'build_tile_info', 'generate_tiles', 'unet_image_from_tiles_blend']
+           'build_tile_info', 'generate_tiles', 'unet_image_from_tiles_blend',
+           'draw_random_tile']
 
 def make_mask(shape, overlap, top=True, left=True, right=True, bottom=True):
     mask = np.full(shape, 1.)
@@ -85,6 +86,43 @@ def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
 
 
 def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=0.0):
+    in_img = npzoom(in_img[0], scale, order=0)
+    h,w = in_img.shape
+    overlap = int(max(h,w)*overlap_pct)
+    step_sz = tile_sz - overlap
+    assembled = PIL.Image.new('RGB',in_img.shape)
+
+    for x_tile in range(0,math.ceil(w/step_sz)):
+        for y_tile in range(0,math.ceil(h/step_sz)):
+            x_start = x_tile*step_sz
+            x_end = min(x_start + tile_sz, w)
+            y_start = y_tile*step_sz
+            y_end = min(y_start + tile_sz, h)
+            src_tile = in_img[y_start:y_end,x_start:x_end]
+
+            mask = make_mask(src_tile.shape, overlap,
+                            top=y_start!=0,
+                            left=x_start!=0,
+                            bottom=y_end!=h,
+                            right=x_end!=w)
+
+            in_tile = torch.zeros((1, tile_sz, tile_sz))
+            in_x_size = x_end - x_start
+            in_y_size = y_end - y_start
+            if (in_y_size, in_x_size) != src_tile.shape: set_trace()
+            in_tile[0,0:in_y_size, 0:in_x_size] = tensor(src_tile)
+
+            out_tile, _, _ = learn.predict(Image(in_tile))
+
+            out_tile = (out_tile.data[0].numpy() * 255.).astype(np.uint8)
+            combined = np.stack([out_tile[0:in_y_size, 0:in_x_size]]*3 +[mask]).transpose(1,2,0)
+            t_img = PIL.Image.fromarray(combined, mode='RGBA')
+            assembled.paste(t_img, box=(x_start,y_start))
+
+    out_img = np.array(assembled.convert('L'))
+    return out_img
+
+def unet_image_from_tiles_blend_old(learn, in_img, tile_sz=256, scale=4, overlap_pct=0.0):
     in_img = npzoom(in_img[0], scale, order=1)
     h,w = in_img.shape
     overlap = int(max(h,w)*overlap_pct)
@@ -568,6 +606,8 @@ def generate_tiles(dest_dir, tile_info, scale=4, crap_dirs=None, crap_func=None)
             img = PIL.Image.open(fn)
             img_data = np.array(img)
             img_max = img_data.max()
+            img_data /= img_max
+
             thresh = 0.01
             thresh_pct = (img_data.mean() > 1) * 0.5
             last_fn = fn

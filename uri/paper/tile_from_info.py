@@ -118,8 +118,7 @@ def get_tile_puller(tile_stat, crap_func):
         fn = Path(istat['fn'])
         tile_sz = istat['tile_sz']
 
-        img_data = img_get(istat)
-
+        img_data = (255.0 * img_get(istat)).astype(np.uint8)
         crop_img, box = draw_random_tile(img_data, istat['tile_sz'], thresh, thresh_pct)
         crop_img.save(tile_folder/f'{id:06d}_{fn.stem}.tif')
         if crap_func and crap_folder:
@@ -199,7 +198,7 @@ def main(out: Param("dataset folder", Path, required=True),
             try:
                 mode = tile_stat['dsplit']
                 category = tile_stat['category']
-
+                tile_sz = tile_stat['tile_sz']
                 tile_folder = ensure_folder(out / f'hr_t_{tile_sz}' / mode / category)
                 if crap_func: crap_folder = ensure_folder(out / f'lr{up}_t_{tile_sz}' / mode / category)
                 else: crap_folder = None

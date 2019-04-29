@@ -73,9 +73,6 @@ def get_tile_puller(tile_stat, crap_func):
         img_max = img_data.max() # np.iinfo(img_data.dtype).max
         img_data = img_data.astype(np.float32)
 
-        thresh = np.percentile(img_data, 2)
-        thresh_pct = (img_data > thresh).mean() * 0.5
-
         def czi_get(istat):
             c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
             idx = build_index(
@@ -87,9 +84,10 @@ def get_tile_puller(tile_stat, crap_func):
                     'Y': slice(0, y)
                 })
             img = img_data[idx].copy()
-            img /= img_max
-            # eps = 1e-20
-            # img = (img - mi) / (ma - mi + eps)
+            # img /= img_max
+            eps = 1e-20
+            img = (img - mi) / (ma - mi + eps)
+            img = img.clip(0,1.)
             # return img.clip(0.,1.)
             return img
 
@@ -104,8 +102,6 @@ def get_tile_puller(tile_stat, crap_func):
         img_max = img.max() # np.iinfo(img.dtype).max
         img = img.astype(np.float32) / img_max
 
-        thresh = np.percentile(img, 2)
-        thresh_pct = (img > thresh).mean() * 0.5
 
         def pil_get(istat):
             c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
@@ -113,12 +109,12 @@ def get_tile_puller(tile_stat, crap_func):
             pil_img.load()
             img = np.array(pil_img)
             if len(img.shape) > 2: img = img[:,:,0]
-            img_max = img.max()
-            img = img.astype(np.float32) / img_max
-
-            # eps = 1e-20
-            # img = (img - mi) / (ma - mi + eps)
-            # return img.clip(0.,1.)
+            # img_max = img.max()
+            # img = img.astype(np.float32) / img_max
+            img = img.astype(np.float32)
+            eps = 1e-20
+            img = (img - mi) / (ma - mi + eps)
+            img = img.clip(0,1.)
             return img
 
         img_get = pil_get
@@ -136,6 +132,10 @@ def get_tile_puller(tile_stat, crap_func):
 
         raw_data = img_get(istat)
         img_data = (np.iinfo(np.uint8).max * raw_data).astype(np.uint8)
+
+        thresh = np.percentile(img_data, 2)
+        thresh_pct = (img_data > thresh).mean() * 0.75
+
         crop_img, box = draw_random_tile(img_data, istat['tile_sz'], thresh, thresh_pct)
         crop_img.save(tile_folder/f'{id:06d}_{fn.stem}.tif')
         if crap_func and crap_folder:

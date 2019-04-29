@@ -31,10 +31,24 @@ def process_czi(item, category, mode):
         mid_depth = depths // 2
         depth_range = range(max(0,mid_depth-2), min(depths, mid_depth+2))
         is_multi = (times > 1) or (depths > 1)
+
+        data = czi_f.asarray()
+        dtype = data.dtype
         for channel in range(channels):
             for z in depth_range:
                 for t in range(times):
+                    idx = build_index(
+                        axes, {
+                            'T': t,
+                            'C': channel,
+                            'Z': z,
+                            'X': slice(0, x),
+                            'Y': slice(0, y)
+                        })
+                    img = data[idx]
+                    mi, ma = np.percentile(img, [2,99.8])
                     tif_srcs.append({'fn': item, 'ftype': 'czi', 'multi':int(is_multi), 'category': category, 'dsplit': mode,
+                                     'dtype': dtype, 'mi': mi, 'ma': ma,
                                      'nc': channels, 'nz': depths, 'nt': times,
                                      'z': mid_depth, 't': t, 'c':channel, 'x': x, 'y': y})
     return tif_srcs
@@ -47,7 +61,13 @@ def process_tif(item, category, mode):
     x,y = img.size
     is_multi = n_frames > 1
     for z in range(n_frames):
+        img.seek(z)
+        img.load()
+        img_data = np.array(img)
+        dtype = img_data.dtype
+        mi, ma = np.percentile(img_data, [2,99.8])
         tif_srcs.append({'fn': item, 'ftype': 'tif', 'multi':int(is_multi), 'category': category, 'dsplit': mode,
+                         'dtype': dtype, 'mi': mi, 'ma': ma,
                          'nc': 1, 'nz': n_frames, 'nt': 1,
                          'z': z, 't': 0, 'c':0, 'x': x, 'y': y})
 
@@ -110,4 +130,4 @@ def main(out: Param("tif source name", Path, required=True),
         tif_srcs += build_tifs(src, mbar=mbar)
 
     tif_src_df = pd.DataFrame(tif_srcs)
-    tif_src_df[['category','dsplit','multi','ftype','nc','nz','nt','c','z','t','x','y','fn']].to_csv(out, header=True, index=False)
+    tif_src_df[['category','dsplit','multi','ftype', 'dtype', 'mi', 'ma', 'nc','nz','nt','c','z','t','x','y','fn']].to_csv(out, header=True, index=False)

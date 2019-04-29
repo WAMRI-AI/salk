@@ -19,14 +19,11 @@ PIL.Image.MAX_IMAGE_PIXELS = 99999999999999
 def default_crap(img, scale=4, upsample=True, pscale=12, gscale=0.0001):
     from skimage.transform import rescale
 
-
-    # set_trace()
     # pull pixel data from PIL image
     x = np.array(img)
     multichannel = len(x.shape) > 2
 
     # remember the range of the original image
-    dmax = np.iinfo(x.dtype).max
     img_max = x.max()
 
     # normalize 0-1.0
@@ -49,8 +46,6 @@ def default_crap(img, scale=4, upsample=True, pscale=12, gscale=0.0001):
 
     if upsample: x = rescale(x, scale=scale, order=0, multichannel=multichannel)
 
-    x /= dmax
-    x *= np.iinfo(np.uint8).max
     return PIL.Image.fromarray(x.astype(np.uint8))
 
 def need_cache_flush(tile_stats, last_stats):
@@ -69,15 +64,44 @@ def get_tile_puller(tile_stat, crap_func):
     if ftype == 'czi':
         img_f = czifile.CziFile(fn)
         proc_axes, proc_shape = get_czi_shape_info(img_f)
-        img_data = img_f.asarray()
-        img_max = img_data.max() # np.iinfo(img_data.dtype).max
-        img_data = img_data.astype(np.float32)
-
-        thresh = np.percentile(img_data, 2)
-        thresh_pct = (img_data > thresh).mean() * 0.5
+        img_data = img_f.asarray().astype(np.float32)
+        img_max = img_data.max()
+        thresh = 0.01
+        thresh_pct = (img_data.mean() > 1) * 0.5
 
         def czi_get(istat):
-            c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
+            n_frames = istat['n_frames']
+            nt = istat['nt']
+            nz = istat['nz']
+            c = istat['c']
+            z = istat['z']
+            t = istat['t']
+            x = istat['x']
+            y = istat['y']
+
+            if nz > 1:
+                offset = n_frames // 2
+                min_z = z-offset
+                max_z = z+offset+1
+                if max_z > nz:
+                    max_z = nz
+                    min_z = max_z-n_frames-1
+                elif min_z < 0:
+                    min_z = 0
+                    max_z = n_frames + 1
+                z = slice(min_z, max_z)
+            else:
+                offset = n_frames // 2
+                min_t = t-offset
+                max_t = t+offset+1
+                if max_t > nt:
+                    max_t = nt
+                    min_t = max_t-n_frames-1
+                elif min_t < 0:
+                    min_t = 0
+                    max_t = n_frames + 1
+                t = slice(min_t, max_t)
+
             idx = build_index(
                 proc_axes, {
                     'T': t,
@@ -86,43 +110,40 @@ def get_tile_puller(tile_stat, crap_func):
                     'X': slice(0, x),
                     'Y': slice(0, y)
                 })
-            img = img_data[idx].copy()
+            img = img_data[idx].copy().astype(np.float32)
             img /= img_max
-            # eps = 1e-20
-            # img = (img - mi) / (ma - mi + eps)
-            # return img.clip(0.,1.)
             return img
-
         img_get = czi_get
         img_get._to_close = img_f
     else:
         pil_img = PIL.Image.open(fn)
-        n_frames = pil_img.n_frames
+        n_frames = istat['n_frames']
+        nz = istat['nz']
+        z = istat['z']
+        thresh = 0.01
+        thresh_pct = (img_data.mean() > 1) * 0.5
 
-        img = np.array(pil_img)
-        if len(img.shape) > 2: img = img[:,:,0]
-        img_max = img.max() # np.iinfo(img.dtype).max
-        img = img.astype(np.float32) / img_max
-
-        thresh = np.percentile(img, 2)
-        thresh_pct = (img > thresh).mean() * 0.5
+        offset = n_frames // 2
+        min_z = z-offset
+        max_z = z+offset+1
+        if max_z > nz:
+            max_z = nz
+            min_z = max_z-n_frames-1
+        elif min_z < 0:
+            min_z = 0
+            max_z = n_frames + 1
+        z = slice(min_z, max_z)
 
         def pil_get(istat):
-            c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
-            pil_img.seek(z)
+            print('fix z fetch')
+            set_trace()
+            pil_img.seek(istat['z'])
             pil_img.load()
-            img = np.array(pil_img)
-            if len(img.shape) > 2: img = img[:,:,0]
-            img_max = img.max()
-            img = img.astype(np.float32) / img_max
-
-            # eps = 1e-20
-            # img = (img - mi) / (ma - mi + eps)
-            # return img.clip(0.,1.)
+            img = np.array(pil_img).astype(np.float32)
+            img /= img.max()
             return img
-
         img_get = pil_get
-        img_get._to_close = pil_img
+        img_get._to_close = img_f
 
     def puller(istat, tile_folder, crap_folder, close_me=False):
         if close_me:
@@ -132,10 +153,9 @@ def get_tile_puller(tile_stat, crap_func):
         id = istat['index']
         fn = Path(istat['fn'])
         tile_sz = istat['tile_sz']
-        c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
 
-        raw_data = img_get(istat)
-        img_data = (np.iinfo(np.uint8).max * raw_data).astype(np.uint8)
+        set_trace()
+        img_data = (255.0 * img_get(istat)).astype(np.uint8)
         crop_img, box = draw_random_tile(img_data, istat['tile_sz'], thresh, thresh_pct)
         crop_img.save(tile_folder/f'{id:06d}_{fn.stem}.tif')
         if crap_func and crap_folder:
@@ -154,6 +174,7 @@ def get_tile_puller(tile_stat, crap_func):
 def main(out: Param("dataset folder", Path, required=True),
          info: Param('info file', Path, required=True),
          tile: Param('generated tile size', int, nargs='+', required=True),
+         frame: Param('num frames', int, nargs='+', required=True),
          n_train: Param('number of train tiles', int, required=True),
          n_valid: Param('number of validation tiles', int, required=True),
          crap_func: Param('crappifier name', object) = default_crap,
@@ -178,7 +199,7 @@ def main(out: Param("dataset folder", Path, required=True),
         shutil.rmtree(out)
 
     info = pd.read_csv(info)
-
+    info = info.loc[info.multi == 1]
     if ftypes: info = info.loc[info.ftype.isin(ftypes)]
     if only: info = info.loc[info.category.isin(only)]
     elif skip: info = info.loc[~info.category.isin(skip)]
@@ -195,9 +216,11 @@ def main(out: Param("dataset folder", Path, required=True),
             fn, item_df = random.choice(files_by_category[category])
             item_info = item_df.loc[random.choice(item_df.index)]
             for tile_sz in tile:
-                item_d = dict(item_info)
-                item_d['tile_sz'] = tile_sz
-                tile_infos.append(item_d)
+                for n_frames in frame:
+                    item_d = dict(item_info)
+                    item_d['tile_sz'] = tile_sz
+                    item_d['n_frames'] = n_frames
+                    tile_infos.append(item_d)
 
     tile_info_df = pd.DataFrame(tile_infos).reset_index()
     print('num tile pulls:', len(tile_infos))
@@ -216,22 +239,27 @@ def main(out: Param("dataset folder", Path, required=True),
                 mode = tile_stat['dsplit']
                 category = tile_stat['category']
                 tile_sz = tile_stat['tile_sz']
-                tile_folder = ensure_folder(out / f'hr_t_{tile_sz}' / mode / category)
-                if crap_func: crap_folder = ensure_folder(out / f'lr{up}_t_{tile_sz}' / mode / category)
-                else: crap_folder = None
+                n_frames = tile_stat['n_frames']
 
-                if need_cache_flush(tile_stat, last_stat):
-                    if tile_puller:
-                        tile_puller(None, None, None, close_me=True)
-                    last_stat = tile_stat.copy()
-                    tile_sz = tile_stat['tile_sz']
-                    tile_puller = get_tile_puller(tile_stat, crap_func)
-                tile_pull_info.append(tile_puller(tile_stat, tile_folder, crap_folder))
+                if tile_stat['z'] > 1 or tile_stat['t'] > 1:
+                    ft = 'z' if tile_stat['z'] > 1 else 't'
+                    tile_folder = ensure_folder(out / f'hr_t_{tile_sz}_f{ft}_{n_frames}' / mode / category)
+                    if crap_func: crap_folder = ensure_folder(out / f'lr{up}_t_{tile_sz}_f{ft}_{n_frames}' / mode / category)
+                    else: crap_folder = None
+
+                    if need_cache_flush(tile_stat, last_stat):
+                        if tile_puller:
+                            tile_puller(None, None, None, close_me=True)
+                        last_stat = tile_stat.copy()
+                        tile_sz = tile_stat['tile_sz']
+                        tile_puller = get_tile_puller(tile_stat, crap_func)
+
+                    tile_pull_info.append(tile_puller(tile_stat, tile_folder, crap_folder))
             except MemoryError as error:
                 # some files are too big to read
                 fn = Path(tile_stat['fn'])
                 print(f'too big: {fn.stem}')
 
-    pd.DataFrame(tile_pull_info).to_csv(out/'tiles.csv', index = False)
+    pd.DataFrame(tile_pull_info).to_csv(out/'multitiles.csv', index = False)
 
 

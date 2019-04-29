@@ -90,7 +90,7 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
         mid_time = times // 2
         mid_depth = depths // 2
 
-        data = czi_f.asarray().astype(np.float32) / 255.
+        data = czi_f.asarray().astype(np.float32)
         img_max = data.max()
 
         for c in range(channels):
@@ -103,9 +103,11 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
                     'Y': slice(0, y)
             })
             img = data[idx].copy()
+            img /= img_max
 
             if truth_czi:
-                truth_data = truth_czi.asarray().astype(np.float32) / 255.
+                truth_data = truth_czi.asarray().astype(np.float32)
+                truth_max = truth_data.max()
                 truth_proc_axes, truth_proc_shape = get_czi_shape_info(truth_czi)
                 truth_x, truth_y = truth_proc_shape['X'], truth_proc_shape['Y']
                 truth_idx = build_index(
@@ -118,7 +120,7 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
                 })
 
                 truth_img = truth_data[truth_idx].copy()
-                truth_img /= truth_img.max()
+                truth_img /= truth_max
             else:
                 truth_img = None
             tag = f'{c:02d}_{mid_time:05d}_{mid_depth:05d}'
@@ -130,7 +132,7 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
                 else: pred_img = None
             else:
                 pred_img = proc_func(img)
-                PIL.Image.fromarray(pred_img).save(out_name)
+                PIL.Image.fromarray((pred_img*255.).astype(np.uint8)).save(out_name)
 
             if not truth_img is None and not pred_img is None:
                 istats = calc_stats(pred_img, truth_img)

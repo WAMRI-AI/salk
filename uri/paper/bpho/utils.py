@@ -86,7 +86,9 @@ def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
 
 
 def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=0.0):
-    in_img = npzoom(in_img[0], scale, order=0)
+    mi, ma = np.percentile(in_img, [2,99.8])
+    in_img = (in_img - mi) / (ma - mi + 1e-20)
+    in_img = npzoom(in_img[0], scale, order=1)
     h,w = in_img.shape
     overlap = int(max(h,w)*overlap_pct)
     step_sz = tile_sz - overlap
@@ -114,7 +116,10 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
 
             out_tile, _, _ = learn.predict(Image(in_tile))
 
-            out_tile = (out_tile.data[0].numpy() * 255.).astype(np.uint8)
+            out_tile = out_tile.data[0].numpy()
+            out_tile = (out_tile * (ma - mi + 1e-20)) + mi
+            out_tile /= out_tile.max()
+            out_tile = (out_tile * 255.).astype(np.uint8)
             combined = np.stack([out_tile[0:in_y_size, 0:in_x_size]]*3 +[mask]).transpose(1,2,0)
             t_img = PIL.Image.fromarray(combined, mode='RGBA')
             assembled.paste(t_img, box=(x_start,y_start))
@@ -370,8 +375,9 @@ def tif_predict_images(learn,
     for i in range(times):
         im.seek(i)
         im.load()
-        imgs.append(np.array(im).astype(np.float32) / 255.)
+        imgs.append(np.array(im))
     img_data = np.stack(imgs)
+    print(img_data.dtype)
 
     preds = []
     origs = []
@@ -381,11 +387,10 @@ def tif_predict_images(learn,
     #print(f'tif: x:{x} y:{y} t:{times}')
     for t in progress_bar(list(range(times))):
         img = img_data[t].copy()
-        img /= img_max
-
         pred = unet_image_from_tiles_blend(learn, img[None], tile_sz=size)
         preds.append(pred[None])
-        orig = (img[None] * 255).astype(np.uint8)
+        orig = img / img.max()
+        orig = (orig[None] * 255).astype(np.uint8)
         origs.append(orig)
 
     if len(preds) > 0:
@@ -416,10 +421,11 @@ def czi_predict_images(learn,
 
         x, y = proc_shape['X'], proc_shape['Y']
 
-        data = czi_f.asarray().astype(np.float32) / 255.
+        data = czi_f.asarray()
+        orig_dtype = data.dtype
 
         img_max = data.max()
-        #print(f'czi: x:{x} y:{y} t:{times} c:{channels} z:{depths} {img_max}')
+        print(f'czi: x:{x} y:{y} t:{times} c:{channels} z:{depths} {img_max}')
 
         channels_bar = progress_bar(
             range(channels)) if channels > 1 else range(channels)
@@ -448,15 +454,14 @@ def czi_predict_images(learn,
                                 'Y': slice(0, y)
                             })
                         img = data[idx].copy()
-                        img /= img_max
-
                         pred = unet_image_from_tiles_blend(learn,
                                                         img[None],
                                                         tile_sz=size)
                         preds.append(pred[None])
                         #imsave(folder/f'{t}.tif', pred[0])
 
-                        orig = (img[None] * 255).astype(np.uint8)
+                        orig = img / img.max()
+                        orig = (orig[None] * 255).astype(np.uint8)
                         origs.append(orig)
 
                     if len(preds) > 0:
@@ -483,7 +488,7 @@ def generate_tifs(src, dest, learn, size, tag=None, max_imgs=None):
                                 fn,
                                 dest,
                                 category,
-                                size=size,
+                               size=size,
                                 tag=tag,
                                 max_imgs=max_imgs)
         except Exception as e:

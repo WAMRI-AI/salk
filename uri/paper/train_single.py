@@ -30,7 +30,7 @@ def get_data(bs, size, x_data, y_data, max_zoom=1.1):
     data = (src
             .transform(tfms, size=size)
             .transform_y(tfms, size=size)
-            .databunch(bs=bs).normalize(do_y=True))
+            .databunch(bs=bs))
     data.c = 3
     return data
 
@@ -80,7 +80,8 @@ def main(
         hr_tifs = dataset/f'hr_t_{tile_sz:d}'
         lrup_tifs = dataset/f'lrup_t_{tile_sz:d}'
 
-    print(hr_tifs, lrup_tifs)
+    print(datasets, dataset, hr_tifs, lrup_tifs)
+
     model_dir = 'models'
 
     gpu = setup_distrib(gpu)
@@ -90,9 +91,10 @@ def main(
     loss = F.mse_loss
     metrics = sr_metrics
 
-    bs = bs * n_gpus
+    bs = min(bs, bs * n_gpus)
     size = size
     arch = eval(arch)
+
     data = get_data(bs, size, lrup_tifs, hr_tifs)
     if gpu == 0 or gpu is None:
         callback_fns = []

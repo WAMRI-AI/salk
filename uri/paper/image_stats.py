@@ -63,9 +63,10 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats):
                 pred_img = (pred_img.astype(np.float32)/255.).copy()
             else: pred_img = None
         else:
-            img = np.array(img_tif)
-            img = (img.astype(np.float32)/255.).copy()
+            img = np.array(img_tif).copy().astype(np.float)
+            img /= img.max()
 
+            img = (img * np.iinfo(np.uint8).max).astype(np.uint8)
             pred_img = proc_func(img)
 
             PIL.Image.fromarray(pred_img).save(out_name)
@@ -131,6 +132,7 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
                     pred_img = np.array(PIL.Image.open(out_name))
                 else: pred_img = None
             else:
+                img = (img * np.iinfo(np.uint8).max).astype(np.uint8)
                 pred_img = proc_func(img)
                 PIL.Image.fromarray((pred_img*255.).astype(np.uint8)).save(out_name)
 

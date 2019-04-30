@@ -46,7 +46,7 @@ def process_czi(item, category, mode):
                             'Y': slice(0, y)
                         })
                     img = data[idx]
-                    mi, ma = np.percentile(img, [2,99.98])
+                    mi, ma = np.percentile(img, [2,99.99])
                     tif_srcs.append({'fn': item, 'ftype': 'czi', 'multi':int(is_multi), 'category': category, 'dsplit': mode,
                                      'dtype': dtype, 'mi': mi, 'ma': ma,
                                      'nc': channels, 'nz': depths, 'nt': times,
@@ -65,7 +65,7 @@ def process_tif(item, category, mode):
         img.load()
         img_data = np.array(img)
         dtype = img_data.dtype
-        mi, ma = np.percentile(img_data, [2,99.98])
+        mi, ma = np.percentile(img_data, [2,99.99])
         tif_srcs.append({'fn': item, 'ftype': 'tif', 'multi':int(is_multi), 'category': category, 'dsplit': mode,
                          'dtype': dtype, 'mi': mi, 'ma': ma,
                          'nc': 1, 'nz': n_frames, 'nt': 1,

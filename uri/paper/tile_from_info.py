@@ -161,7 +161,7 @@ def main(out: Param("dataset folder", Path, required=True),
          ftypes: Param('ftypes allowed e.g. - czi, tif', str, nargs='+') = None,
          not_unet: Param('unet style (down and back upsample)', action='store_true') = False,
          only: Param('limit to these categories', nargs='+') = None,
-         skip: Param("categories to skip", str, nargs='+') = ['random', 'centrioles','ArgoSIMDL', 'neurons', 'fixed_neurons'],
+         skip: Param("categories to skip", str, nargs='+') = ['random', 'ArgoSIMDL'],
          clean: Param("wipe existing data first", action='store_true') = False):
     "generate tiles from source tiffs"
     is_unet = not not_unet

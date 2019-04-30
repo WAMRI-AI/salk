@@ -2,6 +2,7 @@
 from fastai import *
 from fastai.vision import *
 import shutil
+from skimage.filters import gaussian
 from skimage.io import imsave
 import PIL
 import imageio
@@ -85,7 +86,84 @@ def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
 
 
 
-def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=0.0):
+def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=10.0):
+    dmax = np.iinfo(in_img.dtype).max
+    mi, ma = np.percentile(in_img, [2,99.8])
+    in_img = ((in_img - mi) / (ma - mi + 1e-20)).clip(0.,1.)
+    in_img = npzoom(in_img[0], scale, order=1)
+    h,w = in_img.shape
+    overlap = int(tile_sz*(overlap_pct/100.) // 2 * 2)
+    step_sz = tile_sz - overlap
+
+    assembled = np.zeros(in_img.shape)
+
+    x_seams = set()
+    y_seams = set()
+
+    for x_tile in range(0,math.ceil(w/step_sz)):
+        for y_tile in range(0,math.ceil(h/step_sz)):
+            x_start = x_tile*step_sz
+            x_end = min(x_start + tile_sz, w)
+            y_start = y_tile*step_sz
+            y_end = min(y_start + tile_sz, h)
+            src_tile = in_img[y_start:y_end,x_start:x_end]
+
+
+            in_tile = torch.zeros((1, tile_sz, tile_sz))
+            in_x_size = x_end - x_start
+            in_y_size = y_end - y_start
+            if (in_y_size, in_x_size) != src_tile.shape: set_trace()
+            in_tile[0,0:in_y_size, 0:in_x_size] = tensor(src_tile)
+
+            out_tile, _, _ = learn.predict(Image(in_tile))
+            out_tile = out_tile.data[0].numpy()
+            out_tile = (out_tile * (ma - mi + 1e-20)) + mi
+
+            half_overlap = overlap // 2
+            left_adj = half_overlap if x_start != 0 else 0
+            right_adj = half_overlap if x_end != w else 0
+            top_adj = half_overlap if y_start != 0 else 0
+            bot_adj = half_overlap if y_end != h else 0
+
+            trim_y_start = y_start + top_adj
+            trim_x_start = x_start + left_adj
+            trim_y_end = y_end - bot_adj
+            trim_x_end = x_end - right_adj
+
+            out_x_start = left_adj
+            out_y_start = top_adj
+            out_x_end = in_x_size - right_adj
+            out_y_end = in_y_size - bot_adj
+
+            assembled[trim_y_start:trim_y_end, trim_x_start:trim_x_end] = out_tile[out_y_start:out_y_end, out_x_start:out_x_end]
+
+            if trim_x_start != 0: x_seams.add(trim_x_start)
+            if trim_y_start != 0: y_seams.add(trim_y_end)
+
+    blur_rects = []
+    blur_size = 5
+    for x_seam in x_seams:
+        left = x_seam - blur_size
+        right = x_seam + blur_size
+        top, bottom = 0, h
+        blur_rects.append((slice(top, bottom), slice(left, right)))
+
+    for y_seam in y_seams:
+        top = y_seam - blur_size
+        bottom = y_seam + blur_size
+        left, right = 0, w
+        blur_rects.append((slice(top, bottom), slice(left, right)))
+
+    for xs,ys in blur_rects:
+        assembled[xs,ys] = gaussian(assembled[xs,ys], sigma=0.4)
+
+    assembled = assembled / dmax
+    assembled *= np.iinfo(np.uint8).max
+    assembled = assembled.astype(np.uint8)
+    PIL.Image.fromarray(assembled).save('/DATA/temp/foo2.tif')
+    return assembled
+
+def unet_image_from_tiles_blend_oldmask(learn, in_img, tile_sz=256, scale=4, overlap_pct=0.0):
     mi, ma = np.percentile(in_img, [2,99.8])
     in_img = (in_img - mi) / (ma - mi + 1e-20)
     in_img = npzoom(in_img[0], scale, order=1)
@@ -384,13 +462,11 @@ def tif_predict_images(learn,
     img_max = img_data.max()
 
     x, y = im.size
-    #print(f'tif: x:{x} y:{y} t:{times}')
+    print(f'tif: x:{x} y:{y} t:{times}')
     for t in progress_bar(list(range(times))):
         img = img_data[t].copy()
         pred = unet_image_from_tiles_blend(learn, img[None], tile_sz=size)
         preds.append(pred[None])
-        orig = img / img.max()
-        orig = (orig[None] * 255).astype(np.uint8)
         origs.append(orig)
 
     if len(preds) > 0:
@@ -453,7 +529,9 @@ def czi_predict_images(learn,
                                 'X': slice(0, x),
                                 'Y': slice(0, y)
                             })
-                        img = data[idx].copy()
+                        img = data[idx].copy().astype(np.float32)
+                        img /= img_max
+                        img = (img * np.iinfo(np.uint8).max).astype(np.uint8)
                         pred = unet_image_from_tiles_blend(learn,
                                                         img[None],
                                                         tile_sz=size)

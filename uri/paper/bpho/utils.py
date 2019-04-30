@@ -88,7 +88,7 @@ def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
 
 def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=10.0):
     dmax = np.iinfo(in_img.dtype).max
-    mi, ma = np.percentile(in_img, [2,99.8])
+    mi, ma = np.percentile(in_img, [2,99.98])
     in_img = ((in_img - mi) / (ma - mi + 1e-20)).clip(0.,1.)
     in_img = npzoom(in_img[0], scale, order=1)
     h,w = in_img.shape
@@ -164,7 +164,7 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
     return assembled
 
 def unet_image_from_tiles_blend_oldmask(learn, in_img, tile_sz=256, scale=4, overlap_pct=0.0):
-    mi, ma = np.percentile(in_img, [2,99.8])
+    mi, ma = np.percentile(in_img, [2,99.98])
     in_img = (in_img - mi) / (ma - mi + 1e-20)
     in_img = npzoom(in_img[0], scale, order=1)
     h,w = in_img.shape
@@ -543,6 +543,7 @@ def czi_predict_images(learn,
                         origs.append(orig)
 
                     if len(preds) > 0:
+                        set_trace()
                         all_y = np.concatenate(preds)
                         imageio.mimwrite(pred_out, all_y, bigtiff=True)
                         all_y = np.concatenate(origs)

@@ -17,7 +17,7 @@ import torch
 import math
 from .multi import MultiImage
 from time import sleep
-
+import shutil
 
 __all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders',
            'build_tile_info', 'generate_tiles', 'unet_image_from_tiles_blend',
@@ -86,15 +86,18 @@ def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
 
 
 
-def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=10.0):
-    dmax = np.iinfo(in_img.dtype).max
-    mi, ma = np.percentile(in_img, [2,99.98])
-    in_img = ((in_img - mi) / (ma - mi + 1e-20)).clip(0.,1.)
+# take float (0-1.0) in and spits out (0-1.0)
+def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=5.0, img_info=None):
+    if img_info:
+        mi, ma = [img_info[fld] for fld in ['mi','ma']]
+        in_img = ((in_img - mi) / (ma - mi + 1e-20)).clip(0.,1.)
+    else:
+        mi, ma = 0., 1.
+
     in_img = npzoom(in_img[0], scale, order=1)
     h,w = in_img.shape
     overlap = int(tile_sz*(overlap_pct/100.) // 2 * 2)
     step_sz = tile_sz - overlap
-
     assembled = np.zeros(in_img.shape)
 
     x_seams = set()
@@ -115,9 +118,9 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
             if (in_y_size, in_x_size) != src_tile.shape: set_trace()
             in_tile[0,0:in_y_size, 0:in_x_size] = tensor(src_tile)
 
-            out_tile, _, _ = learn.predict(Image(in_tile))
-            out_tile = out_tile.data[0].numpy()
-            out_tile = (out_tile * (ma - mi + 1e-20)) + mi
+            y, pred, raw_pred = learn.predict(Image(in_tile))
+
+            out_tile = pred.numpy()[0]
 
             half_overlap = overlap // 2
             left_adj = half_overlap if x_start != 0 else 0
@@ -155,87 +158,14 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
         blur_rects.append((slice(top, bottom), slice(left, right)))
 
     for xs,ys in blur_rects:
-        assembled[xs,ys] = gaussian(assembled[xs,ys], sigma=0.4)
+        assembled[xs,ys] = gaussian(assembled[xs,ys], sigma=1.0)
 
-    assembled = assembled / dmax
-    assembled *= np.iinfo(np.uint8).max
-    assembled = assembled.astype(np.uint8)
-    PIL.Image.fromarray(assembled).save('/DATA/temp/foo2.tif')
+    assembled -= assembled.min()
+    assembled /= assembled.max()
+    assembled *= (ma - mi)
+    assembled += mi
+
     return assembled
-
-def unet_image_from_tiles_blend_oldmask(learn, in_img, tile_sz=256, scale=4, overlap_pct=0.0):
-    mi, ma = np.percentile(in_img, [2,99.98])
-    in_img = (in_img - mi) / (ma - mi + 1e-20)
-    in_img = npzoom(in_img[0], scale, order=1)
-    h,w = in_img.shape
-    overlap = int(max(h,w)*overlap_pct)
-    step_sz = tile_sz - overlap
-    assembled = PIL.Image.new('RGB',in_img.shape)
-
-    for x_tile in range(0,math.ceil(w/step_sz)):
-        for y_tile in range(0,math.ceil(h/step_sz)):
-            x_start = x_tile*step_sz
-            x_end = min(x_start + tile_sz, w)
-            y_start = y_tile*step_sz
-            y_end = min(y_start + tile_sz, h)
-            src_tile = in_img[y_start:y_end,x_start:x_end]
-
-            mask = make_mask(src_tile.shape, overlap,
-                            top=y_start!=0,
-                            left=x_start!=0,
-                            bottom=y_end!=h,
-                            right=x_end!=w)
-
-            in_tile = torch.zeros((1, tile_sz, tile_sz))
-            in_x_size = x_end - x_start
-            in_y_size = y_end - y_start
-            if (in_y_size, in_x_size) != src_tile.shape: set_trace()
-            in_tile[0,0:in_y_size, 0:in_x_size] = tensor(src_tile)
-
-            out_tile, _, _ = learn.predict(Image(in_tile))
-
-            out_tile = out_tile.data[0].numpy()
-            out_tile = (out_tile * (ma - mi + 1e-20)) + mi
-            out_tile /= out_tile.max()
-            out_tile = (out_tile * 255.).astype(np.uint8)
-            combined = np.stack([out_tile[0:in_y_size, 0:in_x_size]]*3 +[mask]).transpose(1,2,0)
-            t_img = PIL.Image.fromarray(combined, mode='RGBA')
-            assembled.paste(t_img, box=(x_start,y_start))
-
-    out_img = np.array(assembled.convert('L'))
-    return out_img
-
-def unet_image_from_tiles_blend_old(learn, in_img, tile_sz=256, scale=4, overlap_pct=0.0):
-    in_img = npzoom(in_img[0], scale, order=1)
-    h,w = in_img.shape
-    overlap = int(max(h,w)*overlap_pct)
-    step_sz = tile_sz - overlap
-    assembled = PIL.Image.new('RGB',in_img.shape)
-    for x_tile in range(0,math.ceil(w/step_sz)):
-        for y_tile in range(0,math.ceil(h/step_sz)):
-            x_start = x_tile*step_sz
-            x_end = min(x_start + tile_sz, w)
-            y_start = y_tile*step_sz
-            y_end = min(y_start + tile_sz, h)
-            src_tile = in_img[y_start:y_end,x_start:x_end]
-            mask = make_mask(src_tile.shape, overlap,
-                            top=y_start!=0,
-                            left=x_start!=0,
-                            bottom=y_end!=h,
-                            right=x_end!=w)
-            in_tile = torch.zeros((1, tile_sz, tile_sz))
-            in_x_size = x_end - x_start
-            in_y_size = y_end - y_start
-            if (in_y_size, in_x_size) != src_tile.shape: set_trace()
-            in_tile[0,0:in_y_size, 0:in_x_size] = tensor(src_tile)
-            out_tile, _, _ = learn.predict(Image(in_tile))
-            out_tile = (out_tile.data[0].numpy() * 255.).astype(np.uint8)
-            combined = np.stack([out_tile[0:in_y_size, 0:in_x_size]]*3 +[mask]).transpose(1,2,0)
-            t_img = PIL.Image.fromarray(combined, mode='RGBA')
-            assembled.paste(t_img, box=(x_start,y_start))
-    out_img = np.array(assembled.convert('L'))
-    return out_img
-
 
 
 def unet_image_from_tiles(learn, in_img, tile_sz=128, scale=4):
@@ -325,13 +255,11 @@ def tif_predict_movie(learn,
         orig = (img[1][None] * 255).astype(np.uint8)
         origs.append(orig)
     if len(preds) > 0:
-        all_y = np.concatenate(preds)
-        #print(all_y.shape)
+        all_y = img_to_uint8(np.concatenate(preds))
         imageio.mimwrite(
             pred_out, all_y,
             bigtiff=True)  #, fps=30, macro_block_size=None) # for mp4
-        all_y = np.concatenate(origs)
-        #print(all_y.shape)
+        all_y = img_to_uint8(np.concatenate(origs))
         imageio.mimwrite(orig_out, all_y,
                          bigtiff=True)  #, fps=30, macro_block_size=None)
 
@@ -388,13 +316,12 @@ def czi_predict_movie(learn,
             orig = (img[wsize // 2][None] * 255).astype(np.uint8)
             origs.append(orig)
         if len(preds) > 0:
-            all_y = np.concatenate(preds)
-            #print(all_y.shape)
+            all_y = img_to_uint8(np.concatenate(preds))
             imageio.mimwrite(
                 pred_out, all_y,
                 bigtiff=True)  #, fps=30, macro_block_size=None) # for mp4
-            all_y = np.concatenate(origs)
-            #print(all_y.shape)
+
+            all_y = img_to_uint8(np.concatenate(origs))
             imageio.mimwrite(orig_out, all_y,
                              bigtiff=True)  #, fps=30, macro_block_size=None)
 
@@ -426,6 +353,24 @@ def generate_movies(dest_dir, movie_files, learn, size, wsize=5):
             print(f'skip: {fn.stem} - doesn\'t exist')
 
 
+def max_to_use(img):
+    return np.iinfo(np.uint8).max if img.dtype == np.uint8 else img.max()
+
+
+def img_to_uint8(img):
+    img = img.copy()
+    img -= img.min()
+    img /= img.max()
+    img *= np.iinfo(np.uint8).max
+    return img.astype(np.uint8)
+
+def img_to_float(img):
+    img = img.astype(np.float32).copy()
+    mi, ma = np.percentile(img, [2,99.99])
+    img_range = ma - mi
+    real_max = img.max()
+    img_max = max_to_use(img)
+    return img, {'img_max': img_max, 'real_max': real_max, 'mi': mi, 'ma': ma }
 
 def tif_predict_images(learn,
                        tif_in,
@@ -454,26 +399,23 @@ def tif_predict_images(learn,
         im.seek(i)
         im.load()
         imgs.append(np.array(im))
-    img_data = np.stack(imgs)
-    print(img_data.dtype)
+
+    imgs, img_info = img_to_float(np.stack(imgs))
 
     preds = []
-    origs = []
-    img_max = img_data.max()
 
     x, y = im.size
     print(f'tif: x:{x} y:{y} t:{times}')
     for t in progress_bar(list(range(times))):
-        img = img_data[t].copy()
-        pred = unet_image_from_tiles_blend(learn, img[None], tile_sz=size)
+        img = imgs[t]
+        img = img.copy()
+        pred = unet_image_from_tiles_blend(learn, img[None], tile_sz=size, img_info=img_info)
         preds.append(pred[None])
-        origs.append(orig)
 
     if len(preds) > 0:
-        all_y = np.concatenate(preds)
+        all_y = img_to_uint8(np.concatenate(preds))
         imageio.mimwrite(pred_out, all_y, bigtiff=True)
-        all_y = np.concatenate(origs)
-        imageio.mimwrite(orig_out, all_y, bigtiff=True)
+        shutil.copy(tif_in, orig_out)
 
 
 def czi_predict_images(learn,
@@ -497,7 +439,7 @@ def czi_predict_images(learn,
 
         x, y = proc_shape['X'], proc_shape['Y']
 
-        data = czi_f.asarray()
+        data, img_info = img_to_float(czi_f.asarray())
         orig_dtype = data.dtype
 
         img_max = data.max()
@@ -529,24 +471,18 @@ def czi_predict_images(learn,
                                 'X': slice(0, x),
                                 'Y': slice(0, y)
                             })
-                        img = data[idx].copy().astype(np.float32)
-                        img /= img_max
-                        img = (img * np.iinfo(np.uint8).max).astype(np.uint8)
+                        img = data[idx].copy()
                         pred = unet_image_from_tiles_blend(learn,
-                                                        img[None],
-                                                        tile_sz=size)
+                                                           img[None],
+                                                           tile_sz=size,
+                                                           img_info=img_info)
                         preds.append(pred[None])
-                        #imsave(folder/f'{t}.tif', pred[0])
-
-                        orig = img / img.max()
-                        orig = (orig[None] * 255).astype(np.uint8)
-                        origs.append(orig)
+                        origs.append(img[None])
 
                     if len(preds) > 0:
-                        set_trace()
-                        all_y = np.concatenate(preds)
+                        all_y = img_to_uint8(np.concatenate(preds))
                         imageio.mimwrite(pred_out, all_y, bigtiff=True)
-                        all_y = np.concatenate(origs)
+                        all_y = img_to_uint8(np.concatenate(origs))
                         imageio.mimwrite(orig_out, all_y, bigtiff=True)
 
 

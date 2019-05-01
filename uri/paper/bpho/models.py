@@ -26,8 +26,8 @@ def build_processor(name, model_dir):
     tile_sz = int(name.split('_')[-1])
 
     def learn_processor(img):
-        pred = unet_image_from_tiles_blend(learn, img[None], tile_sz=tile_sz)
-        pred_img = (pred / 255.).astype(np.float32)
+        img = (img * np.iinfo(np.uint8).max).astype(np.uint8)
+        pred_img = unet_image_from_tiles_blend(learn, img[None], tile_sz=tile_sz)
         return pred_img
 
     return learn_processor

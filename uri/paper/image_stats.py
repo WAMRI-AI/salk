@@ -24,6 +24,12 @@ def check_dir(p):
 def get_sub_folders(p):
     return [f for f in p.iterdir() if p.is_dir()]
 
+def img_to_float(img):
+    if img.dtype == np.uint8:
+        return img.astype(np.float32).copy() / np.iinfo(np.uint8).max
+    else:
+        return img.astype(np.float32).copy() / img.max()
+
 
 def calc_stats(pred_img, truth_img):
     if pred_img is None: return None
@@ -51,28 +57,23 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats):
         if truth_imgs:
             truth_imgs.seek(mid_frame)
             truth_imgs.load()
-            truth_img = np.array(truth_imgs)
-            truth_img = (truth_img.astype(np.float32)/255.).copy()
+            truth_img = img_to_float(np.array(truth_imgs))
         else: truth_img = None
 
         tag = f'{mid_frame:05d}'
         out_name = (out_fldr/f'{proc_name}_{item.stem}_{tag}').with_suffix('.tif')
+        pred_img = None
         if just_stats:
             if out_name.exists():
-                pred_img = np.array(PIL.Image.open(out_name))
-                pred_img = (pred_img.astype(np.float32)/255.).copy()
-            else: pred_img = None
-        else:
-            img = np.array(img_tif).copy().astype(np.float)
-            img /= img.max()
-
-            img = (img * np.iinfo(np.uint8).max).astype(np.uint8)
+                pred_img = img_to_float(np.array(PIL.Image.open(out_name)))
+        if pred_img is None:
+            img = img_to_float(np.array(img_tif))
             pred_img = proc_func(img)
-
             PIL.Image.fromarray(pred_img).save(out_name)
 
         if not truth_img is None and not pred_img is None:
-            istats = calc_stats(pred_img, truth_img)
+            pred_float_img = img_to_float(pred_img)
+            istats = calc_stats(pred_float_img, truth_img)
             if istats:
                 istats.update({'tag': tag, 'item': item.stem})
                 stats.append(istats)
@@ -91,8 +92,13 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
         mid_time = times // 2
         mid_depth = depths // 2
 
-        data = czi_f.asarray().astype(np.float32)
-        img_max = data.max()
+        data = img_to_float(czi_f.asarray().astype(np.float32))
+
+        if truth_czi:
+            truth_data = img_to_float(truth_czi.asarray())
+            truth_proc_axes, truth_proc_shape = get_czi_shape_info(truth_czi)
+            truth_x, truth_y = truth_proc_shape['X'], truth_proc_shape['Y']
+        else: truth_data = None
 
         for c in range(channels):
             idx = build_index(
@@ -103,14 +109,9 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
                     'X': slice(0, x),
                     'Y': slice(0, y)
             })
-            img = data[idx].copy()
-            img /= img_max
 
-            if truth_czi:
-                truth_data = truth_czi.asarray().astype(np.float32)
-                truth_max = truth_data.max()
-                truth_proc_axes, truth_proc_shape = get_czi_shape_info(truth_czi)
-                truth_x, truth_y = truth_proc_shape['X'], truth_proc_shape['Y']
+            img = data[idx].copy()
+            if not truth_data is None:
                 truth_idx = build_index(
                     proc_axes, {
                         'T': mid_time,
@@ -119,25 +120,23 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
                         'X': slice(0, truth_x),
                         'Y': slice(0, truth_y)
                 })
-
                 truth_img = truth_data[truth_idx].copy()
-                truth_img /= truth_max
             else:
                 truth_img = None
             tag = f'{c:02d}_{mid_time:05d}_{mid_depth:05d}'
             out_name = (out_fldr/f'{proc_name}_{item.stem}_{tag}').with_suffix(".tif")
 
+            pred_img = None
             if just_stats:
                 if out_name.exists():
-                    pred_img = np.array(PIL.Image.open(out_name))
-                else: pred_img = None
-            else:
-                img = (img * np.iinfo(np.uint8).max).astype(np.uint8)
+                    pred_img = img_to_float(np.array(PIL.Image.open(out_name)))
+            if pred_img is None:
                 pred_img = proc_func(img)
-                PIL.Image.fromarray((pred_img*255.).astype(np.uint8)).save(out_name)
+                PIL.Image.fromarray(pred_img).save(out_name)
 
             if not truth_img is None and not pred_img is None:
-                istats = calc_stats(pred_img, truth_img)
+                pred_float_img = pred_img.astype(np.float32) / pred_img.max()
+                istats = calc_stats(pred_float_img, truth_img)
                 if istats:
                     istats.update({'tag': tag, 'item': item.stem})
                     stats.append(istats)

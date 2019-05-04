@@ -109,8 +109,8 @@ def get_tile_puller(tile_stat, crap_func, n_frames):
         img_get = czi_get
         img_get._to_close = img_f
     else:
+        type_frames = 'Z'
         pil_img = PIL.Image.open(fn)
-        n_frames = pil_img.n_frames
 
         img = np.array(pil_img)
         if len(img.shape) > 2: img = img[:,:,0]
@@ -121,7 +121,7 @@ def get_tile_puller(tile_stat, crap_func, n_frames):
         def pil_get(istat):
             type_frams = 'Z'
             c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
-            start_z, end_z = z - half_frames, z + half_framesi + 1
+            start_z, end_z = z - half_frames, z + half_frames + 1
 
             img_array = []
             for iz in range(start_z, end_z):
@@ -177,7 +177,7 @@ def get_tile_puller(tile_stat, crap_func, n_frames):
                 crap_frame = crap_func(crop_img)
                 crap_data.append(np.array(crap_frame))
             multi_array = np.stack(crap_data)
-            np.save(crap_folder/f'{id:06d}_{fn.stem}.tif', multi_array)
+            np.save(crap_folder/f'{id:06d}_{fn.stem}.npy', multi_array)
 
         info = dict(istat)
         info['id'] = id
@@ -203,6 +203,8 @@ def main(out: Param("dataset folder", Path, required=True),
          n_train: Param('number of train tiles', int, required=True),
          n_valid: Param('number of validation tiles', int, required=True),
          crap_func: Param('crappifier name', object) = default_crap,
+         do_z: Param('do z axis', action='store_true') = False,
+         do_t: Param('do z axis', action='store_true') = False,
          n_frames: Param('number of input frames', int) = 5,
          scale: Param('amount to scale', int) = 4,
          ftypes: Param('ftypes allowed e.g. - czi, tif', str, nargs='+') = None,
@@ -211,6 +213,10 @@ def main(out: Param("dataset folder", Path, required=True),
          skip: Param("categories to skip", str, nargs='+') = ['random', 'ArgoSIMDL'],
          clean: Param("wipe existing data first", action='store_true') = False):
     "generate tiles from source tiffs"
+    if not do_z and not do_t:
+        print('mult select t or z')
+        return 1
+
     is_unet = not not_unet
     up = 'up' if is_unet else ''
 
@@ -231,7 +237,10 @@ def main(out: Param("dataset folder", Path, required=True),
     elif skip: info = info.loc[~info.category.isin(skip)]
 
     # filter to multi
-    max_frames = info[['nt','nz']].apply(max, axis=1)
+    depth_types = []
+    if do_z: depth_types.append('nz')
+    if do_t: depth_types.append('nt')
+    max_frames = info[depth_types].apply(max, axis=1)
     info = info.loc[max_frames > n_frames]
 
     tile_infos = []
@@ -279,7 +288,7 @@ def main(out: Param("dataset folder", Path, required=True),
 
                 if need_cache_flush(tile_stat, last_stat):
                     if tile_puller:
-                        tile_puller(None, None, None, close_me=True)
+                        tile_puller(None, None, None, None, None, close_me=True)
                     last_stat = tile_stat.copy()
                     tile_sz = tile_stat['tile_sz']
                     tile_puller = get_tile_puller(tile_stat, crap_func, n_frames)

@@ -15,32 +15,6 @@ import czifile
 
 torch.backends.cudnn.benchmark = True
 
-def _my_noise(x, gauss_sigma=1.):
-    c,h,w = x.shape
-    noise = torch.zeros((1,h,w))
-    noise.normal_(0, gauss_sigma)
-    img_max = np.minimum(1.1 * x.max(), 1.)
-    x = np.minimum(np.maximum(0,x+noise), img_max)
-    x = random_noise(x, mode='salt', amount=0.005)
-    x = random_noise(x, mode='pepper', amount=0.005)
-    return x
-
-my_noise = TfmPixel(_my_noise)
-
-def get_xy_transforms(max_rotate=10., min_zoom=1., max_zoom=2.):
-    base_tfms = [[rand_crop(),
-                   dihedral_affine(),
-                   rotate(degrees=(-max_rotate,max_rotate)),
-                   rand_zoom(min_zoom, max_zoom)],
-                 [crop_pad()]]
-
-    y_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
-    x_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
-    x_tfms[0].append(cutout())
-    x_tfms[0].append(my_noise())
-
-    return x_tfms, y_tfms
-
 def check_dir(p):
     if not p.exists():
         print(f"couldn't find {p}")

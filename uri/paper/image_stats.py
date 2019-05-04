@@ -15,6 +15,32 @@ import czifile
 
 torch.backends.cudnn.benchmark = True
 
+def _my_noise(x, gauss_sigma=1.):
+    c,h,w = x.shape
+    noise = torch.zeros((1,h,w))
+    noise.normal_(0, gauss_sigma)
+    img_max = np.minimum(1.1 * x.max(), 1.)
+    x = np.minimum(np.maximum(0,x+noise), img_max)
+    x = random_noise(x, mode='salt', amount=0.005)
+    x = random_noise(x, mode='pepper', amount=0.005)
+    return x
+
+my_noise = TfmPixel(_my_noise)
+
+def get_xy_transforms(max_rotate=10., min_zoom=1., max_zoom=2.):
+    base_tfms = [[rand_crop(),
+                   dihedral_affine(),
+                   rotate(degrees=(-max_rotate,max_rotate)),
+                   rand_zoom(min_zoom, max_zoom)],
+                 [crop_pad()]]
+
+    y_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
+    x_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
+    x_tfms[0].append(cutout())
+    x_tfms[0].append(my_noise())
+
+    return x_tfms, y_tfms
+
 def check_dir(p):
     if not p.exists():
         print(f"couldn't find {p}")
@@ -24,12 +50,10 @@ def check_dir(p):
 def get_sub_folders(p):
     return [f for f in p.iterdir() if p.is_dir()]
 
-def img_to_float(img):
-    if img.dtype == np.uint8:
-        return img.astype(np.float32).copy() / np.iinfo(np.uint8).max
-    else:
-        return img.astype(np.float32).copy() / img.max()
-
+def _norm_t(img):
+    mi, ma = img.min(), img.max()
+    nimg = (img - mi) / (ma - mi)
+    return tensor(nimg[None,None])
 
 def calc_stats(pred_img, truth_img):
     if pred_img is None: return None
@@ -42,8 +66,10 @@ def calc_stats(pred_img, truth_img):
         print('unable to match input and ground truth sizes')
         breakpoint()
 
-    ssim_val = ssim(tensor(pred_img[None,None]), tensor(truth_img[None,None]), window_size=10)
-    psnr_val = psnr(tensor(pred_img[None,None]), tensor(truth_img[None,None]))
+
+    t_pred, t_truth = _norm_t(pred_img), _norm_t(truth_img)
+    ssim_val = ssim(t_pred, t_truth, window_size=10)
+    psnr_val = psnr(t_pred, t_truth)
     return {'ssim': float(ssim_val), 'psnr': float(psnr_val), 'fid': 0.0}
 
 def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats):
@@ -57,23 +83,27 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats):
         if truth_imgs:
             truth_imgs.seek(mid_frame)
             truth_imgs.load()
-            truth_img = img_to_float(np.array(truth_imgs))
+            truth_img, truth_info = img_to_float(np.array(truth_imgs))
         else: truth_img = None
 
         tag = f'{mid_frame:05d}'
-        out_name = (out_fldr/f'{proc_name}_{item.stem}_{tag}').with_suffix('.tif')
+        save_name = f'{proc_name}_{item.stem}_{tag}'
+        out_name = (out_fldr/save_name).with_suffix('.tif')
         pred_img = None
         if just_stats:
             if out_name.exists():
-                pred_img = img_to_float(np.array(PIL.Image.open(out_name)))
+                pred_img, pred_info = img_to_float(np.array(PIL.Image.open(out_name)))
+
         if pred_img is None:
-            img = img_to_float(np.array(img_tif))
-            pred_img = proc_func(img)
-            PIL.Image.fromarray(pred_img).save(out_name)
+            img, img_info = img_to_float(np.array(img_tif))
+            pred_img = proc_func(img, img_info=img_info)
+            PIL.Image.fromarray(img_to_uint8(pred_img)).save(out_name)
 
         if not truth_img is None and not pred_img is None:
-            pred_float_img = img_to_float(pred_img)
-            istats = calc_stats(pred_float_img, truth_img)
+            truth_folder = ensure_folder(out_fldr/'../truth')
+            truth_name = f'truth_{item.stem}_{tag}'
+            PIL.Image.fromarray(img_to_uint8(truth_img)).save((truth_folder/truth_name).with_suffix('.tif'))
+            istats = calc_stats(pred_img, truth_img)
             if istats:
                 istats.update({'tag': tag, 'item': item.stem})
                 stats.append(istats)
@@ -92,10 +122,10 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
         mid_time = times // 2
         mid_depth = depths // 2
 
-        data = img_to_float(czi_f.asarray().astype(np.float32))
+        data, img_info = img_to_float(czi_f.asarray().astype(np.float32))
 
         if truth_czi:
-            truth_data = img_to_float(truth_czi.asarray())
+            truth_data, truth_info = img_to_float(truth_czi.asarray())
             truth_proc_axes, truth_proc_shape = get_czi_shape_info(truth_czi)
             truth_x, truth_y = truth_proc_shape['X'], truth_proc_shape['Y']
         else: truth_data = None
@@ -124,19 +154,22 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
             else:
                 truth_img = None
             tag = f'{c:02d}_{mid_time:05d}_{mid_depth:05d}'
-            out_name = (out_fldr/f'{proc_name}_{item.stem}_{tag}').with_suffix(".tif")
+            save_name = f'{proc_name}_{item.stem}_{tag}'
+            out_name = (out_fldr/save_name).with_suffix(".tif")
 
             pred_img = None
             if just_stats:
                 if out_name.exists():
-                    pred_img = img_to_float(np.array(PIL.Image.open(out_name)))
+                    pred_img, pred_img_info = img_to_float(np.array(PIL.Image.open(out_name)))
             if pred_img is None:
-                pred_img = proc_func(img)
-                PIL.Image.fromarray(pred_img).save(out_name)
+                pred_img = proc_func(img, img_info=img_info)
+                PIL.Image.fromarray(img_to_uint8(pred_img)).save(out_name)
 
             if not truth_img is None and not pred_img is None:
-                pred_float_img = pred_img.astype(np.float32) / pred_img.max()
-                istats = calc_stats(pred_float_img, truth_img)
+                truth_folder = ensure_folder(out_fldr/'../truth')
+                truth_name = f'truth_{item.stem}_{tag}'
+                PIL.Image.fromarray(img_to_uint8(truth_img)).save((truth_folder/truth_name).with_suffix('.tif'))
+                istats = calc_stats(pred_img, truth_img)
                 if istats:
                     istats.update({'tag': tag, 'item': item.stem})
                     stats.append(istats)
@@ -205,7 +238,7 @@ def main(
 
     processors = []
     stats = []
-    if baselines: processors += ['bilinear', 'bicubic']
+    if baselines: processors += ['bilinear', 'bicubic', 'original']
     if models: processors += [m for m in models]
     mbar = master_bar(processors)
     for proc in mbar:
@@ -219,3 +252,4 @@ def main(
     summary_df = stats_df.groupby(['model', 'category']).aggregate({'ssim':'mean', 'psnr':'mean'})
     summary_df.reset_index().to_csv('stats_summary.csv', index=False)
     stats_df.to_csv('stats.csv', index=False)
+    print(summary_df)

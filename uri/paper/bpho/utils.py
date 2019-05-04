@@ -1,6 +1,7 @@
 "utility methods for generating movies from learners"
 from fastai import *
 from fastai.vision import *
+from fastai.callbacks import *
 import shutil
 from skimage.filters import gaussian
 from skimage.io import imsave
@@ -21,7 +22,37 @@ import shutil
 
 __all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders',
            'build_tile_info', 'generate_tiles', 'unet_image_from_tiles_blend',
-           'draw_random_tile']
+           'get_xy_transforms',
+           'draw_random_tile', 'img_to_float', 'img_to_uint8']
+
+def _my_noise(x, gauss_sigma=1.):
+    c,h,w = x.shape
+    noise = torch.zeros((1,h,w))
+    noise.normal_(0, gauss_sigma)
+    img_max = np.minimum(1.1 * x.max(), 1.)
+    x = np.minimum(np.maximum(0,x+noise), img_max)
+    x = random_noise(x, mode='salt', amount=0.005)
+    x = random_noise(x, mode='pepper', amount=0.005)
+    return x
+
+my_noise = TfmPixel(_my_noise)
+
+def get_xy_transforms(max_rotate=10., min_zoom=1., max_zoom=2., use_cutout=False, use_noise=False, xtra_tfms = None):
+    base_tfms = [[rand_crop(),
+                   dihedral_affine(),
+                   rotate(degrees=(-max_rotate,max_rotate)),
+                   rand_zoom(min_zoom, max_zoom)],
+                 [crop_pad()]]
+
+    y_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
+    x_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
+    if use_cutout: x_tfms[0].append(cutout())
+    if use_noise: x_tfms[0].append(my_noise())
+    if xtra_tfms:
+        for tfm in xtra_tfms:
+            x_tfms[0].append(tfm)
+
+    return x_tfms, y_tfms
 
 def make_mask(shape, overlap, top=True, left=True, right=True, bottom=True):
     mask = np.full(shape, 1.)
@@ -165,7 +196,7 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
     assembled *= (ma - mi)
     assembled += mi
 
-    return assembled
+    return assembled.astype(np.float32)
 
 
 def unet_image_from_tiles(learn, in_img, tile_sz=128, scale=4):

@@ -8,15 +8,20 @@ from .utils import unet_image_from_tiles_blend
 
 __all__ = ['get_named_processor', 'add_model_processor']
 
-def bilinear(img):
+def bilinear(img, **kwargs):
     pred_img = npzoom(img, 4, order=1)
     return pred_img
 
-def bicubic(img):
-    pred_img=npzoom(img, 4, order=2)
+def bicubic(img, **kwargs):
+    pred_img=npzoom(img, 4, order=3)
+    return pred_img
+
+def original(img, **kwargs):
+    pred_img = npzoom(img, 4, order=0)
     return pred_img
 
 processors = {
+    'original': original,
     'bilinear': bilinear,
     'bicubic': bicubic
 }
@@ -24,10 +29,8 @@ processors = {
 def build_processor(name, model_dir):
     learn = load_learner(model_dir, f'{name}.pkl').to_fp16()
     tile_sz = int(name.split('_')[-1])
-
-    def learn_processor(img):
-        img = (img * np.iinfo(np.uint8).max).astype(np.uint8)
-        pred_img = unet_image_from_tiles_blend(learn, img[None], tile_sz=tile_sz)
+    def learn_processor(img, img_info=None):
+        pred_img = unet_image_from_tiles_blend(learn, img[None], tile_sz=tile_sz, img_info=img_info)
         return pred_img
 
     return learn_processor

@@ -30,7 +30,8 @@ def build_processor(name, model_dir):
     learn = load_learner(model_dir, f'{name}.pkl').to_fp16()
     tile_sz = int(name.split('_')[-1])
     def learn_processor(img, img_info=None):
-        pred_img = unet_image_from_tiles_blend(learn, img[None], tile_sz=tile_sz, img_info=img_info)
+        if len(img.shape) == 2: img = img[None]
+        pred_img = unet_image_from_tiles_blend(learn, img, tile_sz=tile_sz, img_info=img_info)
         return pred_img
 
     return learn_processor

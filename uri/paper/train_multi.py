@@ -25,35 +25,10 @@ def get_src(x_data, y_data):
             .label_from_func(map_to_hr, convert_mode='L'))
     return src
 
-def _my_noise(x, gauss_sigma=1.):
-    c,h,w = x.shape
-    noise = torch.zeros((1,h,w))
-    noise.normal_(0, gauss_sigma)
-    img_max = np.minimum(1.1 * x.max(), 1.)
-    x = np.minimum(np.maximum(0,x+noise), img_max)
-    x = random_noise(x, mode='salt', amount=0.005)
-    x = random_noise(x, mode='pepper', amount=0.005)
-    return x
 
-my_noise = TfmPixel(_my_noise)
-
-def get_xy_transforms(max_rotate=10., min_zoom=1., max_zoom=2.):
-    base_tfms = [[rand_crop(),
-                   dihedral_affine(),
-                   rotate(degrees=(-max_rotate,max_rotate)),
-                   rand_zoom(min_zoom, max_zoom)],
-                 [crop_pad()]]
-
-    y_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
-    x_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
-    # x_tfms[0].append(cutout())
-    # x_tfms[0].append(my_noise())
-
-    return x_tfms, y_tfms
-
-def get_data(bs, size, x_data, y_data, max_zoom=1.1):
+def get_data(bs, size, x_data, y_data, use_noise=False, use_cutout=False):
     src = get_src(x_data, y_data)
-    x_tfms, y_tfms = get_xy_transforms()
+    x_tfms, y_tfms = get_xy_transforms(use_noise=use_noise, use_cutout=use_cutout)
     data = (src
             .transform(x_tfms, size=size)
             .transform_y(y_tfms, size=size)
@@ -126,13 +101,16 @@ def main(
     size = size
     arch = eval(arch)
 
-    data = get_data(bs, size, lrup_multi_tifs, hr_multi_tifs)
+    data = get_data(bs, size, lrup_multi_tifs, hr_multi_tifs, use_noise=True)
     if gpu == 0 or gpu is None:
         callback_fns = []
         callback_fns.append(partial(SaveModelCallback, name=f'{save_name}_best_{size}'))
-        learn = xres_unet_learner(data, arch, in_c=n_frames, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
+        learn = xres_unet_learner(data, arch, in_c=n_frames, path=Path('.'),
+                                  loss_func=loss, metrics=metrics, model_dir=model_dir,
+                                  callback_fns=callback_fns)
     else:
-        learn = xres_unet_learner(data, arch, in_c=n_frames, path=Path('.'), loss_func=loss, metrics=metrics, model_dir=model_dir)
+        learn = xres_unet_learner(data, arch, in_c=n_frames, path=Path('.'),
+                                  loss_func=loss, metrics=metrics, model_dir=model_dir)
     gc.collect()
 
     if load_name:

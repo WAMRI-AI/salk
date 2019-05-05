@@ -46,13 +46,27 @@ def calc_stats(pred_img, truth_img):
     psnr_val = psnr(t_pred, t_truth)
     return {'ssim': float(ssim_val), 'psnr': float(psnr_val), 'fid': 0.0}
 
-def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats):
+def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth=1, n_time=1):
     stats = []
     truth_imgs = PIL.Image.open(truth) if truth and truth.exists() else None
     with PIL.Image.open(item) as img_tif:
         mid_frame = img_tif.n_frames // 2
-        img_tif.seek(mid_frame)
-        img_tif.load()
+        n_frame = max(n_depth, n_time)
+        if n_frame > img_tif.n_frames: return []
+
+        if n_frame > 1:
+            img_tifs = []
+            offset_frame = n_frame // 2
+            for i in range(mid_frame-offset_frame, mid_frame+offset_frame+1):
+                img_tif.seek(i)
+                img_tif.load()
+                img_tifs.append(np.array(img_tif).copy())
+            imgs = np.stack(img_tifs)
+            img, img_info = img_to_float(imgs)
+        else:
+            img_tif.seek(mid_frame)
+            img_tif.load()
+            img, img_info = img_to_float(np.array(img_tif))
 
         if truth_imgs:
             truth_imgs.seek(mid_frame)
@@ -69,7 +83,6 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats):
                 pred_img, pred_info = img_to_float(np.array(PIL.Image.open(out_name)))
 
         if pred_img is None:
-            img, img_info = img_to_float(np.array(img_tif))
             pred_img = proc_func(img, img_info=img_info)
             PIL.Image.fromarray(img_to_uint8(pred_img)).save(out_name)
 
@@ -83,7 +96,7 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats):
                 stats.append(istats)
     return stats
 
-def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
+def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth=1, n_time=1):
     stats = []
     truth_czi = czifile.CziFile(truth) if truth and truth.exists() else None
     with czifile.CziFile(item) as czi_f:
@@ -93,8 +106,19 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
         times = proc_shape['T']
         x, y = proc_shape['X'], proc_shape['Y']
 
+        if depths < n_depth: return []
+        if times < n_time: return []
+
         mid_time = times // 2
         mid_depth = depths // 2
+        input_depth = mid_depth
+        input_time = mid_time
+        if n_depth > 1:
+            offset_frames = n_depth // 2
+            input_depth = slice(mid_depth - offset_frames, mid_depth + offset_frames + 1)
+        elif n_time > 1:
+            offset_frames = n_times // 2
+            input_time = slice(mid_time - offset_frames, mid_time + offset_frames + 1)
 
         data, img_info = img_to_float(czi_f.asarray().astype(np.float32))
 
@@ -107,9 +131,9 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
         for c in range(channels):
             idx = build_index(
                 proc_axes, {
-                    'T': mid_time,
+                    'T': input_time,
                     'C': c,
-                    'Z': mid_depth,
+                    'Z': input_depth,
                     'X': slice(0, x),
                     'Y': slice(0, y)
             })
@@ -117,7 +141,7 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
             img = data[idx].copy()
             if not truth_data is None:
                 truth_idx = build_index(
-                    proc_axes, {
+                    truth_proc_axes, {
                         'T': mid_time,
                         'C': c,
                         'Z': mid_depth,
@@ -135,6 +159,7 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats):
             if just_stats:
                 if out_name.exists():
                     pred_img, pred_img_info = img_to_float(np.array(PIL.Image.open(out_name)))
+
             if pred_img is None:
                 pred_img = proc_func(img, img_info=img_info)
                 PIL.Image.fromarray(img_to_uint8(pred_img)).save(out_name)
@@ -178,7 +203,11 @@ def process_subfolder(fldr, processor, out_fldr, truth_fldr, model_dir, just_sta
         proc = proc_map.get(item.suffix, None)
         if proc:
             truth = find_truth(item, truth_map)
-            item_stats = proc(item, processor, proc_func, ensure_folder(out_fldr/processor), truth, just_stats)
+
+            n_depth = n_time = 1
+            if 'multiz' in processor: n_depth = 5
+            if 'multit' in processor: n_time = 5
+            item_stats = proc(item, processor, proc_func, ensure_folder(out_fldr/processor), truth, just_stats, n_depth=n_depth, n_time=n_time)
             for s in item_stats:
                 s.update({'category': fldr.name})
             stats += item_stats

@@ -119,17 +119,19 @@ def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
 
 # take float (0-1.0) in and spits out (0-1.0)
 def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=5.0, img_info=None):
+    n_frames = in_img.shape[0]
+
     if img_info:
         mi, ma = [img_info[fld] for fld in ['mi','ma']]
         in_img = ((in_img - mi) / (ma - mi + 1e-20)).clip(0.,1.)
     else:
         mi, ma = 0., 1.
 
-    in_img = npzoom(in_img[0], scale, order=1)
-    h,w = in_img.shape
+    in_img  = np.stack([npzoom(in_img[i], scale, order=1) for i in range(n_frames)])
     overlap = int(tile_sz*(overlap_pct/100.) // 2 * 2)
     step_sz = tile_sz - overlap
-    assembled = np.zeros(in_img.shape)
+    h,w = in_img.shape[1:3]
+    assembled = np.zeros((h,w))
 
     x_seams = set()
     y_seams = set()
@@ -140,16 +142,20 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
             x_end = min(x_start + tile_sz, w)
             y_start = y_tile*step_sz
             y_end = min(y_start + tile_sz, h)
-            src_tile = in_img[y_start:y_end,x_start:x_end]
+            src_tile = in_img[:,y_start:y_end,x_start:x_end]
 
 
-            in_tile = torch.zeros((1, tile_sz, tile_sz))
+            in_tile = torch.zeros((tile_sz, tile_sz, n_frames))
             in_x_size = x_end - x_start
             in_y_size = y_end - y_start
-            if (in_y_size, in_x_size) != src_tile.shape: set_trace()
-            in_tile[0,0:in_y_size, 0:in_x_size] = tensor(src_tile)
+            if (in_y_size, in_x_size) != src_tile.shape[1:3]: set_trace()
+            in_tile[0:in_y_size, 0:in_x_size, :] = tensor(src_tile).permute(1,2,0)
 
-            y, pred, raw_pred = learn.predict(Image(in_tile))
+            if n_frames > 1:
+                img_in = MultiImage([Image(in_tile[:,:,i][None]) for i in range(n_frames)])
+            else:
+                img_in = Image(in_tile[:,:,0][None])
+            y, pred, raw_pred = learn.predict(img_in)
 
             out_tile = pred.numpy()[0]
 

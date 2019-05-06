@@ -7,8 +7,6 @@ from fastai.callbacks import *
 from fastai.distributed import *
 from fastai.vision.models.xresnet import *
 from fastai.vision.models.unet import DynamicUnet
-from skimage.util import random_noise
-from skimage import filters
 from bpho import *
 
 
@@ -68,6 +66,7 @@ def main(
         save_name: Param("model save name", str) = 'combo',
         datasetname: Param('dataset name', str) = 'multi_norm_001',
         tile_sz: Param('tile_sz', int) = 512,
+        noise: Param("train on depth", action='store_true')=False,
         depth: Param("train on depth", action='store_true')=False,
         times: Param("train on depth", action='store_true')=False,
         n_frames: Param('n_frames', int) = 5
@@ -101,7 +100,7 @@ def main(
     size = size
     arch = eval(arch)
 
-    data = get_data(bs, size, lrup_multi_tifs, hr_multi_tifs, use_noise=True)
+    data = get_data(bs, size, lrup_multi_tifs, hr_multi_tifs, use_noise=noise)
     if gpu == 0 or gpu is None:
         callback_fns = []
         callback_fns.append(partial(SaveModelCallback, name=f'{save_name}_best_{size}'))

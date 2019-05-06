@@ -19,6 +19,8 @@ import math
 from .multi import MultiImage
 from time import sleep
 import shutil
+from skimage.util import random_noise
+from skimage import filters
 
 __all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders',
            'build_tile_info', 'generate_tiles', 'unet_image_from_tiles_blend',
@@ -33,7 +35,7 @@ def _my_noise(x, gauss_sigma=1.):
     x = np.minimum(np.maximum(0,x+noise), img_max)
     x = random_noise(x, mode='salt', amount=0.005)
     x = random_noise(x, mode='pepper', amount=0.005)
-    return x
+    return tensor(x)
 
 my_noise = TfmPixel(_my_noise)
 
@@ -200,7 +202,7 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
     assembled -= assembled.min()
     assembled /= assembled.max()
     assembled *= (ma - mi)
-    assembled += mi
+    # assembled += mi
 
     return assembled.astype(np.float32)
 

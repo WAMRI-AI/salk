@@ -7,7 +7,7 @@ from fastai.vision.models.unet import DynamicUnet
 __all__ = ['xres_unet_model', 'xres_unet_learner']
 
 
-def xres_unet_model(in_c, out_c, arch):
+def xres_unet_model(in_c, out_c, arch, blur=True, blur_final=True, self_attention=True, last_cross=True, bottle=True, norm_type=NormType.Weight, **xres_args):
     body = nn.Sequential(*list(arch(c_in=in_c).children())[:-2])
     model = DynamicUnet(body,
                         n_classes=out_c,
@@ -16,12 +16,14 @@ def xres_unet_model(in_c, out_c, arch):
                         self_attention=True,
                         norm_type=NormType.Weight,
                         last_cross=True,
-                        bottle=True)
+                        bottle=True, **xres_args)
     return model
 
 
-def xres_unet_learner(data, arch, in_c=1, out_c=1, **kwargs):
-    model = xres_unet_model(in_c, out_c, arch)
+def xres_unet_learner(data, arch, in_c=1, out_c=1, xres_args=None, **kwargs):
+    if xres_args is None: xres_args = {}
+
+    model = xres_unet_model(in_c, out_c, arch, **xres_args)
     learn = Learner(data, model, **kwargs)
     return learn
 

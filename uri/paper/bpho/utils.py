@@ -119,12 +119,12 @@ def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
 
 
 
-# take float (0-1.0) in and spits out (0-1.0)
+# take float in with info about mi,ma,max in and spits out (0-1.0)
 def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct=5.0, img_info=None):
     n_frames = in_img.shape[0]
 
     if img_info:
-        mi, ma = [img_info[fld] for fld in ['mi','ma']]
+        mi, ma, imax = [img_info[fld] for fld in ['mi','ma','img_max']]
         in_img = ((in_img - mi) / (ma - mi + 1e-20)).clip(0.,1.)
     else:
         mi, ma = 0., 1.
@@ -201,7 +201,8 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
 
     assembled -= assembled.min()
     assembled /= assembled.max()
-    assembled *= (ma - mi)
+    # assembled *= imax
+    # assembled *= (ma - mi)
     # assembled += mi
 
     return assembled.astype(np.float32)

@@ -66,7 +66,10 @@ def main(
         save_name: Param("model save name", str) = 'combo',
         datasetname: Param('dataset name', str) = 'multi_norm_001',
         tile_sz: Param('tile_sz', int) = 512,
+        blur: Param("blur upsample layers", bool)=True,
+        blur_final: Param("blur final upsample layer", bool)=True,
         noise: Param("train on depth", action='store_true')=False,
+        cutout: Param("train on depth", action='store_true')=False,
         depth: Param("train on depth", action='store_true')=False,
         times: Param("train on depth", action='store_true')=False,
         n_frames: Param('n_frames', int) = 5
@@ -100,16 +103,20 @@ def main(
     size = size
     arch = eval(arch)
 
-    data = get_data(bs, size, lrup_multi_tifs, hr_multi_tifs, use_noise=noise)
+    data = get_data(bs, size, lrup_multi_tifs, hr_multi_tifs, use_noise=noise, use_cutout=cutout)
+    xres_args = {
+        'blur_final': blur_final,
+        'blur': blur
+    }
     if gpu == 0 or gpu is None:
         callback_fns = []
         callback_fns.append(partial(SaveModelCallback, name=f'{save_name}_best_{size}'))
         learn = xres_unet_learner(data, arch, in_c=n_frames, path=Path('.'),
                                   loss_func=loss, metrics=metrics, model_dir=model_dir,
-                                  callback_fns=callback_fns)
+                                  callback_fns=callback_fns, xres_args=xres_args)
     else:
         learn = xres_unet_learner(data, arch, in_c=n_frames, path=Path('.'),
-                                  loss_func=loss, metrics=metrics, model_dir=model_dir)
+                                  loss_func=loss, metrics=metrics, model_dir=model_dir, xres_args=xres_args)
     gc.collect()
 
     if load_name:

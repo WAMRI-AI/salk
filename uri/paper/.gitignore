@@ -3,8 +3,11 @@
 /models
 /stats
 /tmp
+/mitostats
+/fullstats
 /*.czi
 /*.tif
 /*.jpg
 /temp
 *.pkl
+/*.csv

@@ -156,7 +156,7 @@ def main(out: Param("dataset folder", Path, required=True),
          tile: Param('generated tile size', int, nargs='+', required=True),
          n_train: Param('number of train tiles', int, required=True),
          n_valid: Param('number of validation tiles', int, required=True),
-         crap_func: Param('crappifier name', object) = default_crap,
+         crap_func: Param('crappifier name', str) = 'default_crap',
          scale: Param('amount to scale', int) = 4,
          ftypes: Param('ftypes allowed e.g. - czi, tif', str, nargs='+') = None,
          not_unet: Param('unet style (down and back upsample)', action='store_true') = False,
@@ -167,11 +167,14 @@ def main(out: Param("dataset folder", Path, required=True),
     is_unet = not not_unet
     up = 'up' if is_unet else ''
 
-    if not callable(crap_func):
-        print('crap_func is not callable')
-        crap_func = None
-    else:
-        crap_func = partial(crap_func, scale=scale, upsample=is_unet)
+
+    crap_func = eval(crap_func)
+    if not crap_func is None:
+        if not callable(crap_func):
+            print('crap_func is not callable')
+            crap_func = None
+        else:
+            crap_func = partial(crap_func, scale=scale, upsample=is_unet)
 
     out = ensure_folder(out)
     if clean:

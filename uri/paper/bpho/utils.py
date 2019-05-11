@@ -21,40 +21,99 @@ from time import sleep
 import shutil
 from skimage.util import random_noise
 from skimage import filters
+from torchvision.models import vgg16_bn
 
 __all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders',
            'build_tile_info', 'generate_tiles', 'unet_image_from_tiles_blend',
-           'get_xy_transforms',
+           'get_xy_transforms', 'get_feat_loss',
            'draw_random_tile', 'img_to_float', 'img_to_uint8']
 
-def _my_noise(x, gauss_sigma=1.):
-    c,h,w = x.shape
-    noise = torch.zeros((1,h,w))
-    noise.normal_(0, gauss_sigma)
-    img_max = np.minimum(1.1 * x.max(), 1.)
-    x = np.minimum(np.maximum(0,x+noise), img_max)
-    x = random_noise(x, mode='salt', amount=0.005)
-    x = random_noise(x, mode='pepper', amount=0.005)
-    return tensor(x)
 
+def gram_matrix(x):
+    n,c,h,w = x.size()
+    x = x.view(n, c, -1)
+    return (x @ x.transpose(1,2))/(c*h*w)
+
+class FeatureLoss(nn.Module):
+    def __init__(self, m_feat, layer_ids, layer_wgts, base_loss=F.l1_loss):
+        super().__init__()
+        self.base_loss = base_loss
+        self.m_feat = m_feat
+        self.loss_features = [self.m_feat[i] for i in layer_ids]
+        self.hooks = hook_outputs(self.loss_features, detach=False)
+        self.wgts = layer_wgts
+        self.metric_names = ['pixel',] + [f'feat_{i}' for i in range(len(layer_ids))
+              ] + [f'gram_{i}' for i in range(len(layer_ids))]
+
+    def make_features(self, x, clone=False):
+        self.m_feat(x)
+        return [(o.clone() if clone else o) for o in self.hooks.stored]
+
+    def forward(self, input, target):
+        feat_input = input.repeat(1,3,1,1)
+        feat_target = target.repeat(1,3,1,1)
+        base_loss = self.base_loss
+        out_feat = self.make_features(feat_target, clone=True)
+        in_feat = self.make_features(feat_input)
+        self.feat_losses = [base_loss(input,target)]
+        self.feat_losses += [base_loss(f_in, f_out)*w
+                             for f_in, f_out, w in zip(in_feat, out_feat, self.wgts)]
+        self.feat_losses += [base_loss(gram_matrix(f_in), gram_matrix(f_out))*w**2 * 5e3
+                             for f_in, f_out, w in zip(in_feat, out_feat, self.wgts)]
+        self.metrics = dict(zip(self.metric_names, self.feat_losses))
+        return sum(self.feat_losses)
+    def __del__(self): self.hooks.remove()
+
+def get_feat_loss():
+    vgg_m = vgg16_bn(True).features.cuda().eval()
+    requires_grad(vgg_m, False)
+    blocks = [i-1 for i,o in enumerate(children(vgg_m)) if isinstance(o,nn.MaxPool2d)]
+    feat_loss = FeatureLoss(vgg_m, blocks[2:5], [5,15,2])
+    return feat_loss
+
+def _down_up(x, scale=4, upsample=False, mode='bilinear'):
+    set_trace()
+    x = F.interpolate(x[None], scale_factor=1/scale)[0]
+    if upsample:
+        x = F.interpolate(x[None], scale_factor=scale, mode=mode)[0]
+    print('du shpe:', x.shape)
+    return x
+down_up = TfmPixel(_down_up)
+
+def _my_noise(x, gauss_sigma:uniform=0.01, pscale:uniform=10):
+    xn = x.numpy()
+    xorig_max = xn.max()
+    xn = np.random.poisson(xn*pscale)/pscale
+    xn += np.random.normal(0, gauss_sigma*xn.std(), size=x.shape)
+    xn = np.maximum(0,xn)
+    xn /= xn.max()
+    xn *= xorig_max
+    x = x.new(xn)
+    return x
 my_noise = TfmPixel(_my_noise)
 
 def get_xy_transforms(max_rotate=10., min_zoom=1., max_zoom=2., use_cutout=False, use_noise=False, xtra_tfms = None):
-    base_tfms = [[rand_crop(),
-                   dihedral_affine(),
-                   rotate(degrees=(-max_rotate,max_rotate)),
-                   rand_zoom(min_zoom, max_zoom)],
-                 [crop_pad()]]
+    base_tfms = [[
+            rand_crop(),
+            dihedral_affine(),
+            rotate(degrees=(-max_rotate,max_rotate)),
+            rand_zoom(min_zoom, max_zoom)
+        ],
+        [crop_pad()]]
 
     y_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
     x_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
-    if use_cutout: x_tfms[0].append(cutout())
-    if use_noise: x_tfms[0].append(my_noise())
+    if use_cutout: x_tfms[0].append(cutout(n_holes=(5,10)))
+    if use_noise:
+        x_tfms[0].append(my_noise(gauss_sigma=(0.01,0.05),pscale=(5,30)))
+
     if xtra_tfms:
         for tfm in xtra_tfms:
             x_tfms[0].append(tfm)
 
     return x_tfms, y_tfms
+
+
 
 def make_mask(shape, overlap, top=True, left=True, right=True, bottom=True):
     mask = np.full(shape, 1.)

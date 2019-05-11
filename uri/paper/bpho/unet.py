@@ -4,26 +4,38 @@ from fastai.vision import *
 from fastai.vision.models.xresnet import *
 from fastai.vision.models.unet import DynamicUnet
 
-__all__ = ['xres_unet_model', 'xres_unet_learner']
+__all__ = ['xres_unet_model', 'xres_unet_learner', 'BilinearWrapper']
 
+class BilinearWrapper(nn.Module):
+    def __init__(self, model, scale=4, mode='bilinear'):
+        super().__init__()
+        self.model = model
+        self.scale = scale
+        self.mode = mode
+
+    def forward(self, x):
+        return self.model(F.interpolate(x, scale_factor=self.scale, mode=self.mode, align_corners=False))
 
 def xres_unet_model(in_c, out_c, arch, blur=True, blur_final=True, self_attention=True, last_cross=True, bottle=True, norm_type=NormType.Weight, **xres_args):
     body = nn.Sequential(*list(arch(c_in=in_c).children())[:-2])
+    print('blur', blur, 'blur_final', blur_final)
     model = DynamicUnet(body,
                         n_classes=out_c,
-                        blur=True,
-                        blur_final=True,
-                        self_attention=True,
-                        norm_type=NormType.Weight,
-                        last_cross=True,
-                        bottle=True, **xres_args)
+                        blur=blur,
+                        blur_final=blur_final,
+                        self_attention=self_attention,
+                        norm_type=norm_type,
+                        last_cross=last_cross,
+                        bottle=bottle, **xres_args)
     return model
 
 
-def xres_unet_learner(data, arch, in_c=1, out_c=1, xres_args=None, **kwargs):
+def xres_unet_learner(data, arch, in_c=1, out_c=1, xres_args=None, bilinear_upsample=True, **kwargs):
     if xres_args is None: xres_args = {}
 
     model = xres_unet_model(in_c, out_c, arch, **xres_args)
+    if bilinear_upsample:
+        model = BilinearWrapper(model)
     learn = Learner(data, model, **kwargs)
     return learn
 

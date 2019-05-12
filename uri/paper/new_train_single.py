@@ -5,12 +5,11 @@ from fastai.script import *
 from fastai.vision import *
 from fastai.callbacks import *
 from fastai.distributed import *
-from fastai.vision.models.xresnet import *
 from fastai.vision.models.unet import DynamicUnet
 from skimage.util import random_noise
 from skimage import filters
 from bpho import *
-
+from bpho.resnet import *
 
 torch.backends.cudnn.benchmark = True
 

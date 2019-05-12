@@ -15,6 +15,12 @@ import PIL
 import czifile
 PIL.Image.MAX_IMAGE_PIXELS = 99999999999999
 
+def no_crap(img, scale=4, upsample=False):
+    from skimage.transform import rescale
+    x = np.array(img)
+    multichannel = len(x.shape) > 2
+    x = rescale(x, scale=1/scale, order=1, multichannel=multichannel)
+    return PIL.Image.fromarray(x.astype(np.uint8))
 
 def default_crap(img, scale=4, upsample=True, pscale=12, gscale=0.0001):
     from skimage.transform import rescale
@@ -56,9 +62,6 @@ def default_crap(img, scale=4, upsample=True, pscale=12, gscale=0.0001):
 def need_cache_flush(tile_stats, last_stats):
     if last_stats is None: return True
     if tile_stats['fn'] != last_stats['fn']: return True
-    # for fld in ['c','z','t']:
-    #     if tile_stats[fld] != last_stats[fld]:
-    #         return True
     return False
 
 def get_tile_puller(tile_stat, crap_func):
@@ -70,11 +73,14 @@ def get_tile_puller(tile_stat, crap_func):
         img_f = czifile.CziFile(fn)
         proc_axes, proc_shape = get_czi_shape_info(img_f)
         img_data = img_f.asarray()
-        img_max = img_data.max() # np.iinfo(img_data.dtype).max
         img_data = img_data.astype(np.float32)
 
         def czi_get(istat):
             c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
+            c,z,t,x,y,mi,ma,dtype = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','dtype']]
+            if dtype == np.uint8:
+                mi, ma = 0., 255.0
+
             idx = build_index(
                 proc_axes, {
                     'T': t,
@@ -84,11 +90,9 @@ def get_tile_puller(tile_stat, crap_func):
                     'Y': slice(0, y)
                 })
             img = img_data[idx].copy()
-            # img /= img_max
             eps = 1e-20
             img = (img - mi) / (ma - mi + eps)
             img = img.clip(0,1.)
-            # return img.clip(0.,1.)
             return img
 
         img_get = czi_get
@@ -99,18 +103,16 @@ def get_tile_puller(tile_stat, crap_func):
 
         img = np.array(pil_img)
         if len(img.shape) > 2: img = img[:,:,0]
-        img_max = img.max() # np.iinfo(img.dtype).max
-        img = img.astype(np.float32) / img_max
-
 
         def pil_get(istat):
-            c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
+            c,z,t,x,y,mi,ma,dtype = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','dtype']]
+            if dtype == np.uint8:
+                mi, ma = 0., 255.0
+
             pil_img.seek(z)
             pil_img.load()
             img = np.array(pil_img)
             if len(img.shape) > 2: img = img[:,:,0]
-            # img_max = img.max()
-            # img = img.astype(np.float32) / img_max
             img = img.astype(np.float32)
             eps = 1e-20
             img = (img - mi) / (ma - mi + eps)
@@ -130,6 +132,7 @@ def get_tile_puller(tile_stat, crap_func):
         tile_sz = istat['tile_sz']
         c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
 
+        set_trace()
         raw_data = img_get(istat)
         img_data = (np.iinfo(np.uint8).max * raw_data).astype(np.uint8)
 
@@ -156,17 +159,15 @@ def main(out: Param("dataset folder", Path, required=True),
          tile: Param('generated tile size', int, nargs='+', required=True),
          n_train: Param('number of train tiles', int, required=True),
          n_valid: Param('number of validation tiles', int, required=True),
-         crap_func: Param('crappifier name', str) = 'default_crap',
+         crap_func: Param('crappifier name', str) = 'no_crap',
          scale: Param('amount to scale', int) = 4,
          ftypes: Param('ftypes allowed e.g. - czi, tif', str, nargs='+') = None,
-         not_unet: Param('unet style (down and back upsample)', action='store_true') = False,
+         upsample: Param('use upsample', action='store_true') = False,
          only: Param('limit to these categories', nargs='+') = None,
          skip: Param("categories to skip", str, nargs='+') = ['random', 'ArgoSIMDL'],
          clean: Param("wipe existing data first", action='store_true') = False):
     "generate tiles from source tiffs"
-    is_unet = not not_unet
-    up = 'up' if is_unet else ''
-
+    up = 'up' if upsample else ''
 
     crap_func = eval(crap_func)
     if not crap_func is None:
@@ -174,7 +175,7 @@ def main(out: Param("dataset folder", Path, required=True),
             print('crap_func is not callable')
             crap_func = None
         else:
-            crap_func = partial(crap_func, scale=scale, upsample=is_unet)
+            crap_func = partial(crap_func, scale=scale, upsample=upsample)
 
     out = ensure_folder(out)
     if clean:

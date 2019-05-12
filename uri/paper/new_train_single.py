@@ -43,7 +43,7 @@ def get_data(bs, size, x_data, y_data,
     data = (src
             .transform(x_tfms, size=x_size)
             .transform_y(y_tfms, size=size)
-            .databunch(bs=bs, **kwargs))#.normalize())
+            .databunch(bs=bs, **kwargs).normalize(do_y=True))
     data.c = 3
     return data
 
@@ -94,7 +94,7 @@ def main(
     print('on gpu: ', gpu)
     n_gpus = num_distrib()
 
-    loss = get_feat_loss() if feat_loss else F.mse_loss
+    loss = get_feat_loss() if feat_loss else F.l1_loss
     metrics = sr_metrics
 
     bs = max(bs, bs * n_gpus)

@@ -260,6 +260,8 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
 
     assembled -= assembled.min()
     assembled /= assembled.max()
+    assembled *= (imax - mi)
+    assembled += mi
     # assembled *= imax
     # assembled *= (ma - mi)
     # assembled += mi
@@ -456,20 +458,22 @@ def max_to_use(img):
     return np.iinfo(np.uint8).max if img.dtype == np.uint8 else img.max()
 
 
-def img_to_uint8(img):
+def img_to_uint8(img, img_info=None):
     img = img.copy()
-    img -= img.min()
-    img /= img.max()
-    img *= np.iinfo(np.uint8).max
+    if img_info and img_info['dtype'] != np.uint8:
+        img -= img.min()
+        img /= img.max()
+        img *= np.iinfo(np.uint8).max
     return img.astype(np.uint8)
 
 def img_to_float(img):
+    dtype = img.dtype
+    img_max = max_to_use(img)
     img = img.astype(np.float32).copy()
     mi, ma = np.percentile(img, [2,99.99])
     img_range = ma - mi
     real_max = img.max()
-    img_max = max_to_use(img)
-    return img, {'img_max': img_max, 'real_max': real_max, 'mi': mi, 'ma': ma }
+    return img, {'img_max': img_max, 'real_max': real_max, 'mi': mi, 'ma': ma, 'dtype':dtype }
 
 def tif_predict_images(learn,
                        tif_in,

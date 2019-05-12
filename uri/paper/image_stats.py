@@ -83,13 +83,14 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth
                 pred_img, pred_info = img_to_float(np.array(PIL.Image.open(out_name)))
 
         if pred_img is None:
+            # set_trace()
             pred_img = proc_func(img, img_info=img_info)
-            PIL.Image.fromarray(img_to_uint8(pred_img)).save(out_name)
+            PIL.Image.fromarray(img_to_uint8(pred_img, img_info=img_info)).save(out_name)
 
         if not truth_img is None and not pred_img is None:
             truth_folder = ensure_folder(out_fldr/'../truth')
             truth_name = f'truth_{item.stem}_{tag}'
-            PIL.Image.fromarray(img_to_uint8(truth_img)).save((truth_folder/truth_name).with_suffix('.tif'))
+            PIL.Image.fromarray(img_to_uint8(truth_img, img_info=img_info)).save((truth_folder/truth_name).with_suffix('.tif'))
             istats = calc_stats(pred_img, truth_img)
             if istats:
                 istats.update({'tag': tag, 'item': item.stem})
@@ -161,13 +162,14 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth
                     pred_img, pred_img_info = img_to_float(np.array(PIL.Image.open(out_name)))
 
             if pred_img is None:
+                # set_trace()
                 pred_img = proc_func(img, img_info=img_info)
-                PIL.Image.fromarray(img_to_uint8(pred_img)).save(out_name)
+                PIL.Image.fromarray(img_to_uint8(pred_img, img_info=img_info)).save(out_name)
 
             if not truth_img is None and not pred_img is None:
                 truth_folder = ensure_folder(out_fldr/'../truth')
                 truth_name = f'truth_{item.stem}_{tag}'
-                PIL.Image.fromarray(img_to_uint8(truth_img)).save((truth_folder/truth_name).with_suffix('.tif'))
+                PIL.Image.fromarray(img_to_uint8(truth_img, img_info=img_info)).save((truth_folder/truth_name).with_suffix('.tif'))
                 istats = calc_stats(pred_img, truth_img)
                 if istats:
                     istats.update({'tag': tag, 'item': item.stem})

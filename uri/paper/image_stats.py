@@ -25,8 +25,9 @@ def get_sub_folders(p):
     return [f for f in p.iterdir() if p.is_dir()]
 
 def _norm_t(img):
-    mi, ma = img.min(), img.max()
-    nimg = (img - mi) / (ma - mi)
+    # mi, ma = img.min(), img.max()
+    # nimg = (img - mi) / (ma - mi)
+    nimg = img.astype(np.float32) / 255.0
     return tensor(nimg[None,None])
 
 def calc_stats(pred_img, truth_img):
@@ -50,13 +51,12 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth
     stats = []
     truth_imgs = PIL.Image.open(truth) if truth and truth.exists() else None
     with PIL.Image.open(item) as img_tif:
-        mid_frame = img_tif.n_frames // 2
         n_frame = max(n_depth, n_time)
+        offset_frame = n_frame // 2
         if n_frame > img_tif.n_frames: return []
-
+        mid_frame = img_tif.n_frames // 2
         if n_frame > 1:
             img_tifs = []
-            offset_frame = n_frame // 2
             for i in range(mid_frame-offset_frame, mid_frame+offset_frame+1):
                 img_tif.seek(i)
                 img_tif.load()
@@ -85,13 +85,15 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth
         if pred_img is None:
             # set_trace()
             pred_img = proc_func(img, img_info=img_info)
-            PIL.Image.fromarray(img_to_uint8(pred_img, img_info=img_info)).save(out_name)
+            pred_img8 = img_to_uint8(pred_img, img_info=img_info)
+            PIL.Image.fromarray(pred_img8).save(out_name)
 
         if not truth_img is None and not pred_img is None:
             truth_folder = ensure_folder(out_fldr/'../truth')
             truth_name = f'truth_{item.stem}_{tag}'
-            PIL.Image.fromarray(img_to_uint8(truth_img, img_info=img_info)).save((truth_folder/truth_name).with_suffix('.tif'))
-            istats = calc_stats(pred_img, truth_img)
+            truth_img8 = img_to_uint8(truth_img, img_info=truth_info)
+            PIL.Image.fromarray(truth_img8).save((truth_folder/truth_name).with_suffix('.tif'))
+            istats = calc_stats(pred_img8, truth_img8)
             if istats:
                 istats.update({'tag': tag, 'item': item.stem})
                 stats.append(istats)
@@ -164,13 +166,15 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth
             if pred_img is None:
                 # set_trace()
                 pred_img = proc_func(img, img_info=img_info)
-                PIL.Image.fromarray(img_to_uint8(pred_img, img_info=img_info)).save(out_name)
+                pred_img8 = img_to_uint8(pred_img, img_info=img_info)
+                PIL.Image.fromarray(pred_img8).save(out_name)
 
             if not truth_img is None and not pred_img is None:
                 truth_folder = ensure_folder(out_fldr/'../truth')
                 truth_name = f'truth_{item.stem}_{tag}'
-                PIL.Image.fromarray(img_to_uint8(truth_img, img_info=img_info)).save((truth_folder/truth_name).with_suffix('.tif'))
-                istats = calc_stats(pred_img, truth_img)
+                truth_img8 = img_to_uint8(truth_img, img_info=truth_info)
+                PIL.Image.fromarray(truth_img8).save((truth_folder/truth_name).with_suffix('.tif'))
+                istats = calc_stats(pred_img8, truth_img8)
                 if istats:
                     istats.update({'tag': tag, 'item': item.stem})
                     stats.append(istats)

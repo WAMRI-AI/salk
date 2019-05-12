@@ -110,7 +110,7 @@ def main(
         'self_attention': attn
     }
 
-    callback_fns = []
+    callback_fns = [partial(ReduceLROnPlateauCallback, patience=1)]
     if gpu == 0 or gpu is None:
         if feat_loss:
             callback_fns = [LossMetrics]

@@ -57,7 +57,7 @@ def do_fit(learn, save_name, lrs=slice(1e-3), pct_start=0.9, cycle_len=10):
 @call_parse
 def main(
         gpu: Param("GPU to run on", str)=None,
-        arch: Param("encode architecture", str) = 'xresnet34',
+        arch: Param("encode architecture", str) = 'wnresnet34',
         bs: Param("batch size per gpu", int) = 8,
         lr: Param("learning rate", float) = 1e-4,
         size: Param("img size", int) = 256,
@@ -65,12 +65,16 @@ def main(
         load_name: Param("load model name", str) = None,
         save_name: Param("model save name", str) = 'combo',
         datasetname: Param('dataset name', str) = 'tiles_002',
-        tile_sz: Param('tile_sz', int) = 512,
-        attn: Param('self attention', action='store_true')=False,
-        blur: Param('upsample blur', action='store_true')=False,
+        tile_sz: Param('tile_sz', int) = 256,
+        attn: Param('self attention', action='store_true')=True,
+        blur: Param('upsample blur', action='store_true')=True,
         final_blur: Param('final upsample blur', action='store_true')=False,
-        bottle: Param('bottleneck', action='store_true')=False,
+        bottle: Param('bottleneck', action='store_true')=True,
         cutout: Param('bottleneck', action='store_true')=False,
+        rrdb: Param('use RRDB_Net', action='store_true')=False,
+        nf: Param('rrdb nf', int) = 32,
+        nb: Param('rrdb nb', int) = 32,
+        gcval: Param('rrdb gc', int) = 32,
         feat_loss: Param('bottleneck', action='store_true')=False
 ):
     data_path = Path('.')
@@ -103,19 +107,31 @@ def main(
 
     print('bs:', bs, 'size: ', size, 'ngpu:', n_gpus)
     data = get_data(bs, size, lr_tifs, hr_tifs, max_zoom=4., use_cutout=cutout)
-    xres_args = {
-        'blur': blur,
-        'blur_final': final_blur,
-        'bottle': bottle,
-        'self_attention': attn
-    }
-
     callback_fns = [partial(ReduceLROnPlateauCallback, patience=1)]
     if gpu == 0 or gpu is None:
         if feat_loss:
             callback_fns = [LossMetrics]
         callback_fns.append(partial(SaveModelCallback, name=f'{save_name}_best_{size}'))
-    learn = xres_unet_learner(data, arch, path=Path('.'), xres_args=xres_args, loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
+
+
+    if rrdb:
+        rrdb_args = {
+            'nf': nf,
+            'nb': nb,
+            'gcval': gcval,
+            'upscale': 4
+        }
+        learn = rrdb_learner(data, rrdb_args=rrdb_args, path=Path('.'),
+                             loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
+    else:
+        wnres_args = {
+            'blur': blur,
+            'blur_final': final_blur,
+            'bottle': bottle,
+            'self_attention': attn
+        }
+        learn = wnres_unet_learner(data, arch, wnres_args=wnres_args, path=Path('.'),
+                                   loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
     gc.collect()
 
     if load_name:

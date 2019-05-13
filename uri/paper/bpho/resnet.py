@@ -3,7 +3,7 @@ import torch,math,sys
 import torch.utils.model_zoo as model_zoo
 from functools import partial
 
-__all__ = ['XResNet', 'xresnet18', 'xresnet34', 'xresnet50', 'xresnet101', 'xresnet152']
+__all__ = ['WNResNet', 'wnresnet18', 'wnresnet34', 'wnresnet50', 'wnresnet101', 'wnresnet152']
 
 # or: ELU+init (a=0.54; gain=1.55)
 act_fn = nn.ReLU(inplace=True)
@@ -46,7 +46,7 @@ class ResBlock(nn.Module):
 
 def filt_sz(recep): return min(64, 2**math.floor(math.log2(recep*0.75)))
 
-class XResNet(nn.Sequential):
+class WNResNet(nn.Sequential):
     def __init__(self, expansion, layers, c_in=3, c_out=1000):
         stem = []
         sizes = [c_in,32,32,64]
@@ -73,8 +73,8 @@ class XResNet(nn.Sequential):
             *[ResBlock(expansion, ni if i==0 else nf, nf, stride if i==0 else 1)
               for i in range(blocks)])
 
-def xresnet(expansion, n_layers, name, pretrained=False, **kwargs):
-    model = XResNet(expansion, n_layers, **kwargs)
+def wnresnet(expansion, n_layers, name, pretrained=False, **kwargs):
+    model = WNResNet(expansion, n_layers, **kwargs)
     if pretrained: model.load_state_dict(model_zoo.load_url(model_urls[name]))
     return model
 
@@ -86,5 +86,5 @@ for n,e,l in [
     [ 101, 4, [3,4,23,3] ],
     [ 152, 4, [3,8,36,3] ],
 ]:
-    name = f'xresnet{n}'
-    setattr(me, name, partial(xresnet, expansion=e, n_layers=l, name=name))
+    name = f'wnresnet{n}'
+    setattr(me, name, partial(wnresnet, expansion=e, n_layers=l, name=name))

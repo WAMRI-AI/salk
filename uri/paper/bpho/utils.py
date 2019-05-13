@@ -86,7 +86,9 @@ def _my_noise(x, gauss_sigma:uniform=0.01, pscale:uniform=10):
     xn = np.random.poisson(xn*pscale)/pscale
     xn += np.random.normal(0, gauss_sigma*xn.std(), size=x.shape)
     xn = np.maximum(0,xn)
-    xn /= xn.max()
+    new_max = xn.max()
+    if new_max > 0:
+        xn /= new_max
     xn *= xorig_max
     x = x.new(xn)
     return x
@@ -260,7 +262,7 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
 
     assembled -= assembled.min()
     assembled /= assembled.max()
-    assembled *= (imax - mi)
+    assembled *= (ma - mi)
     assembled += mi
     # assembled *= imax
     # assembled *= (ma - mi)

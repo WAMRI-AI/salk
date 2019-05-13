@@ -47,8 +47,11 @@ def process_czi(item, category, mode):
                         })
                     img = data[idx]
                     mi, ma = np.percentile(img, [2,99.99])
+                    if dtype == np.uint8: rmax = 255.
+                    else: rmax = img.max()
                     tif_srcs.append({'fn': item, 'ftype': 'czi', 'multi':int(is_multi), 'category': category, 'dsplit': mode,
-                                     'dtype': dtype, 'mi': mi, 'ma': ma,
+                                     'uint8': dtype == np.uint8, 'mi': mi, 'ma': ma, 'rmax': rmax,
+                                     'mean': img.mean(), 'sd': img.std(),
                                      'nc': channels, 'nz': depths, 'nt': times,
                                      'z': mid_depth, 't': t, 'c':channel, 'x': x, 'y': y})
     return tif_srcs
@@ -66,8 +69,11 @@ def process_tif(item, category, mode):
         img_data = np.array(img)
         dtype = img_data.dtype
         mi, ma = np.percentile(img_data, [2,99.99])
+        if dtype == np.uint8: rmax = 255.
+        else: rmax = img_data.max()
         tif_srcs.append({'fn': item, 'ftype': 'tif', 'multi':int(is_multi), 'category': category, 'dsplit': mode,
-                         'dtype': dtype, 'mi': mi, 'ma': ma,
+                         'uint8': dtype==np.uint8, 'mi': mi, 'ma': ma, 'rmax': rmax,
+                         'mean': img_data.mean(), 'sd': img_data.std(),
                          'nc': 1, 'nz': n_frames, 'nt': 1,
                          'z': z, 't': 0, 'c':0, 'x': x, 'y': y})
 
@@ -130,4 +136,4 @@ def main(out: Param("tif source name", Path, required=True),
         tif_srcs += build_tifs(src, mbar=mbar)
 
     tif_src_df = pd.DataFrame(tif_srcs)
-    tif_src_df[['category','dsplit','multi','ftype', 'dtype', 'mi', 'ma', 'nc','nz','nt','c','z','t','x','y','fn']].to_csv(out, header=True, index=False)
+    tif_src_df[['category','dsplit','multi','ftype','uint8','mean','sd','mi','ma','rmax','nc','nz','nt','c','z','t','x','y','fn']].to_csv(out, header=True, index=False)

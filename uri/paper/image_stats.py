@@ -83,7 +83,6 @@ def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth
                 pred_img, pred_info = img_to_float(np.array(PIL.Image.open(out_name)))
 
         if pred_img is None:
-            # set_trace()
             pred_img = proc_func(img, img_info=img_info)
             pred_img8 = img_to_uint8(pred_img, img_info=img_info)
             PIL.Image.fromarray(pred_img8).save(out_name)

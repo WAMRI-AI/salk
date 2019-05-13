@@ -20,6 +20,7 @@ def no_crap(img, scale=4, upsample=False):
     x = np.array(img)
     multichannel = len(x.shape) > 2
     x = rescale(x, scale=1/scale, order=1, multichannel=multichannel)
+    x *= np.iinfo(np.uint8).max
     return PIL.Image.fromarray(x.astype(np.uint8))
 
 def default_crap(img, scale=4, upsample=True, pscale=12, gscale=0.0001):
@@ -76,10 +77,9 @@ def get_tile_puller(tile_stat, crap_func):
         img_data = img_data.astype(np.float32)
 
         def czi_get(istat):
-            c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
-            c,z,t,x,y,mi,ma,dtype = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','dtype']]
-            if dtype == np.uint8:
-                mi, ma = 0., 255.0
+            c,z,t,x,y,mi,ma,is_uint8,rmax = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','uint8','rmax']]
+            if is_uint8:
+                mi, ma, rmax = 0., 255.0, 255.0
 
             idx = build_index(
                 proc_axes, {
@@ -90,9 +90,7 @@ def get_tile_puller(tile_stat, crap_func):
                     'Y': slice(0, y)
                 })
             img = img_data[idx].copy()
-            eps = 1e-20
-            img = (img - mi) / (ma - mi + eps)
-            img = img.clip(0,1.)
+            img /= rmax
             return img
 
         img_get = czi_get
@@ -105,18 +103,16 @@ def get_tile_puller(tile_stat, crap_func):
         if len(img.shape) > 2: img = img[:,:,0]
 
         def pil_get(istat):
-            c,z,t,x,y,mi,ma,dtype = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','dtype']]
-            if dtype == np.uint8:
-                mi, ma = 0., 255.0
+            c,z,t,x,y,mi,ma,is_uint8,rmax = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','uint8','rmax']]
+            if is_uint8:
+                mi, ma, rmax = 0., 255.0, 255.0
 
             pil_img.seek(z)
             pil_img.load()
             img = np.array(pil_img)
             if len(img.shape) > 2: img = img[:,:,0]
             img = img.astype(np.float32)
-            eps = 1e-20
-            img = (img - mi) / (ma - mi + eps)
-            img = img.clip(0,1.)
+            img /= rmax
             return img
 
         img_get = pil_get
@@ -130,14 +126,13 @@ def get_tile_puller(tile_stat, crap_func):
         id = istat['index']
         fn = Path(istat['fn'])
         tile_sz = istat['tile_sz']
-        c,z,t,x,y,mi,ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma']]
+        c,z,t,x,y,mi,ma,is_uint8,rmax = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','uint8','rmax']]
 
-        set_trace()
         raw_data = img_get(istat)
         img_data = (np.iinfo(np.uint8).max * raw_data).astype(np.uint8)
 
         thresh = np.percentile(img_data, 2)
-        thresh_pct = (img_data > thresh).mean() * 0.75
+        thresh_pct = (img_data > thresh).mean() * 0.30
 
         crop_img, box = draw_random_tile(img_data, istat['tile_sz'], thresh, thresh_pct)
         crop_img.save(tile_folder/f'{id:06d}_{fn.stem}.tif')
@@ -149,6 +144,11 @@ def get_tile_puller(tile_stat, crap_func):
         info['id'] = id
         info['box'] = box
         info['tile_sz'] = tile_sz
+        crop_data = np.array(crop_img)
+        info['after_mean'] = crop_data.mean()
+        info['after_sd'] = crop_data.std()
+        info['after_max'] = crop_data.max()
+        info['after_min'] = crop_data.min()
         return info
 
     return puller

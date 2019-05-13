@@ -48,10 +48,6 @@ def get_data(bs, size, x_data, y_data,
     return data
 
 
-def do_fit(learn, save_name, lrs=slice(1e-3), pct_start=0.9, cycle_len=10):
-    learn.to_fp16().fit_one_cycle(cycle_len, lrs, pct_start=pct_start)
-    learn.save(save_name)
-    print(f'saved: {save_name}')
 
 
 @call_parse
@@ -75,6 +71,8 @@ def main(
         nf: Param('rrdb nf', int) = 32,
         nb: Param('rrdb nb', int) = 32,
         gcval: Param('rrdb gc', int) = 32,
+        clip_grad: Param('gradient clipping', float) = None,
+        loss_scale: Param('loss scale', float) = None,
         feat_loss: Param('bottleneck', action='store_true')=False
 ):
     data_path = Path('.')
@@ -140,7 +138,12 @@ def main(
 
     if gpu is None: learn.model = nn.DataParallel(learn.model)
     else: learn.to_distributed(gpu)
-    learn = learn.to_fp16()
+    if not clip_grad is None:
+        learn = learn.clip_grad(clip_grad)
+    if not loss_scale is None:
+        learn = learn.to_fp16(loss_scale=loss_scale)
+    else:
+        learn = learn.to_fp16()
     learn.fit_one_cycle(cycles, lr)
 
     if gpu == 0 or gpu is None:

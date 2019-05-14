@@ -1,6 +1,5 @@
 import sys
 import yaml
-yaml.warnings({'YAMLLoadWarning': False})
 import pandas as pd
 from fastai.script import *
 from fastai.vision import *

@@ -1,6 +1,5 @@
 "build combo dataset"
 import yaml
-yaml.warnings({'YAMLLoadWarning': False})
 
 from fastai.script import *
 from fastai.vision import *

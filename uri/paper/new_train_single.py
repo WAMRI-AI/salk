@@ -1,6 +1,5 @@
 
 import yaml
-yaml.warnings({'YAMLLoadWarning': False})
 from fastai.script import *
 from fastai.vision import *
 from fastai.callbacks import *

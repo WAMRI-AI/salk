@@ -45,7 +45,9 @@ def calc_stats(pred_img, truth_img):
     t_pred, t_truth = _norm_t(pred_img), _norm_t(truth_img)
     ssim_val = ssim(t_pred, t_truth, window_size=10)
     psnr_val = psnr(t_pred, t_truth)
-    return {'ssim': float(ssim_val), 'psnr': float(psnr_val), 'fid': 0.0}
+    mse_val = mse(t_pred, t_truth)
+
+    return {'ssim': float(ssim_val), 'psnr': float(psnr_val), 'mse': float(mse_val), 'fid': 0.0}
 
 def process_tif(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth=1, n_time=1):
     stats = []
@@ -257,7 +259,7 @@ def main(
 
     stats_df = pd.DataFrame(stats)
     print(stats_df)
-    summary_df = stats_df.groupby(['model', 'category']).aggregate({'ssim':'mean', 'psnr':'mean'})
+    summary_df = stats_df.groupby(['model', 'category']).aggregate({'ssim':'mean', 'psnr':'mean', 'mse':'mean'})
     summary_df.reset_index().to_csv('stats_summary.csv', index=False)
     stats_df.to_csv('stats.csv', index=False)
     print(summary_df)

@@ -5,7 +5,7 @@ from torch.autograd import Variable
 import numpy as np
 from math import exp
 
-__all__ = ['sr_metrics', 'ssim','psnr']
+__all__ = ['sr_metrics', 'ssim','psnr','mse']
 
 
 def gaussian(window_size, sigma):
@@ -96,7 +96,9 @@ def ssim(img1, img2, window_size=11, size_average=True, mult=1.):
 
 def psnr(pred, targs):
     mse = F.mse_loss(pred, targs)
-    return 20 * torch.log10(1. / torch.sqrt(mse))
+    return 20 * torch.log10(targs.max() / torch.sqrt(mse))
 
+def mse(pred, targs):
+    return F.mse_loss(pred, targs)
 
 sr_metrics = [ssim, psnr]

@@ -204,15 +204,15 @@ def process_subfolder(fldr, processor, out_fldr, truth_fldr, model_dir, just_sta
         '.czi': process_czi
     }
     truth_map = build_truth_map(truth_fldr)
-    proc_func = get_named_processor(processor, model_dir)
+    proc_func, num_chan = get_named_processor(processor, model_dir)
     for item in fldr.iterdir():
         proc = proc_map.get(item.suffix, None)
         if proc:
             truth = find_truth(item, truth_map)
 
             n_depth = n_time = 1
-            if 'multiz' in processor: n_depth = 5
-            if 'multit' in processor: n_time = 5
+            if 'multiz' in processor: n_depth = num_chan
+            if 'multit' in processor: n_time = num_chan
             item_stats = proc(item, processor, proc_func, ensure_folder(out_fldr/processor), truth, just_stats, n_depth=n_depth, n_time=n_time)
             for s in item_stats:
                 s.update({'category': fldr.name})

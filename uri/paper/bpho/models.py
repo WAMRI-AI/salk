@@ -26,6 +26,10 @@ processors = {
     'bicubic': bicubic
 }
 
+def num_channels(learn):
+    ps = [p for p in learn.model.parameters()]
+    return ps[1].shape[1]
+
 def build_processor(name, model_dir):
     learn = load_learner(model_dir, f'{name}.pkl').to_fp16()
     tile_sz = int(name.split('_')[-1])
@@ -34,16 +38,15 @@ def build_processor(name, model_dir):
         pred_img = unet_image_from_tiles_blend(learn, img, tile_sz=tile_sz, img_info=img_info)
         return pred_img
 
-    return learn_processor
+    return learn_processor, num_channels(learn)
 
 
 def get_named_processor(name, model_dir):
     if not name in processors:
-        proc = build_processor(name, model_dir)
-        if proc:
-            processors[name] = proc
-    proc = processors.get(name, None)
-    return proc
+        proc, num_chan = build_processor(name, model_dir)
+        processors[name] = proc, num_chan
+    proc, num_chan = processors.get(name, None)
+    return proc, num_chan
 
 def make_learner(model_name, model_dir, path):
     print('make_learner here')

@@ -12,18 +12,25 @@ from bpho.resnet import *
 
 torch.backends.cudnn.benchmark = True
 
-def get_src(x_data, y_data):
+def get_src(x_data, y_data, n_frames=1):
     def map_to_hr(x):
-        return y_data/x.relative_to(x_data)
+        return y_data/x.relative_to(x_data).with_suffix('.tif')
 
-    src = (ImageImageList
-            .from_folder(x_data, convert_mode='L')
-            .split_by_folder()
-            .label_from_func(map_to_hr, convert_mode='L'))
+    if n_frames == 1:
+        src = (ImageImageList
+                .from_folder(x_data, convert_mode='L')
+                .split_by_folder()
+                .label_from_func(map_to_hr, convert_mode='L'))
+    else:
+        src = (MultiImageImageList
+                .from_folder(x_data, extensions=['.npy'])
+                .split_by_folder()
+                .label_from_func(map_to_hr, convert_mode='L'))
     return src
 
 
 def get_data(bs, size, x_data, y_data,
+             n_frames=1,
              max_rotate=10.,
              min_zoom=1., max_zoom=1.1,
              use_cutout=False,
@@ -31,7 +38,7 @@ def get_data(bs, size, x_data, y_data,
              scale=4,
              xtra_tfms=None,
              **kwargs):
-    src = get_src(x_data, y_data)
+    src = get_src(x_data, y_data, n_frames=n_frames)
     x_tfms, y_tfms = get_xy_transforms(
                           max_rotate=max_rotate,
                           min_zoom=min_zoom, max_zoom=max_zoom,
@@ -72,8 +79,19 @@ def main(
         gcval: Param('rrdb gc', int) = 32,
         clip_grad: Param('gradient clipping', float) = None,
         loss_scale: Param('loss scale', float) = None,
-        feat_loss: Param('bottleneck', action='store_true')=False
+        feat_loss: Param('bottleneck', action='store_true')=False,
+        n_frames: Param('number of frames', int) = 1,
+        lr_type: Param('training input, (s)ingle, (t) multi or (z) multi', str)='s'
 ):
+    if lr_type == 's':
+        z_frames, t_frames = 1, 1
+        n_frames = 1
+    elif lr_type == 't':
+        z_frames, t_frames = 1, n_frames
+    elif lr_type == 'z':
+        z_frames, t_frames = n_frames, 1
+    multi_str = f'_{lr_type}_{n_frames}' if lr_type != 's' else ''
+
     data_path = Path('.')
     datasets = data_path/'datasets'
     datasources = data_path/'data'
@@ -84,8 +102,8 @@ def main(
         hr_tifs = dataset/f'hr'
         lr_tifs = dataset/f'lr'
     else:
-        hr_tifs = dataset/f'hr_t_{tile_sz:d}'
-        lr_tifs = dataset/f'lr_t_{tile_sz:d}'
+        hr_tifs = dataset/f'hr_t_{tile_sz:d}{multi_str}'
+        lr_tifs = dataset/f'lr_t_{tile_sz:d}{multi_str}'
 
     print(datasets, dataset, hr_tifs)
 
@@ -103,7 +121,7 @@ def main(
     arch = eval(arch)
 
     print('bs:', bs, 'size: ', size, 'ngpu:', n_gpus)
-    data = get_data(bs, size, lr_tifs, hr_tifs, max_zoom=4., use_cutout=cutout)
+    data = get_data(bs, size, lr_tifs, hr_tifs, n_frames=n_frames,  max_zoom=4., use_cutout=cutout)
     callback_fns = [partial(ReduceLROnPlateauCallback, patience=1)]
     if gpu == 0 or gpu is None:
         if feat_loss:
@@ -118,7 +136,7 @@ def main(
             'gcval': gcval,
             'upscale': 4
         }
-        learn = rrdb_learner(data, rrdb_args=rrdb_args, path=Path('.'),
+        learn = rrdb_learner(data, in_c=n_frames, rrdb_args=rrdb_args, path=Path('.'),
                              loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
     else:
         wnres_args = {
@@ -127,7 +145,7 @@ def main(
             'bottle': bottle,
             'self_attention': attn
         }
-        learn = wnres_unet_learner(data, arch, wnres_args=wnres_args, path=Path('.'),
+        learn = wnres_unet_learner(data, arch, in_c=n_frames, wnres_args=wnres_args, path=Path('.'),
                                    loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
     gc.collect()
 

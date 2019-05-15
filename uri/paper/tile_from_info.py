@@ -260,6 +260,7 @@ def main(out: Param("dataset folder", Path, required=True),
     tile_pull_info = []
     tile_puller = None
 
+    multi_str = f'_{lr_type}_{n_frames}' if lr_type != 's' else ''
     mbar = master_bar(tile_info_df.groupby('fn'))
     for fn, tile_stats in mbar:
         if Path(fn).stem == 'high res microtubules for testing before stitching - great quality':
@@ -269,7 +270,6 @@ def main(out: Param("dataset folder", Path, required=True),
                 mode = tile_stat['dsplit']
                 category = tile_stat['category']
                 tile_sz = tile_stat['tile_sz']
-                multi_str = f'_{lr_type}_{n_frames}' if lr_type != 's' else ''
                 tile_folder = ensure_folder(out / f'hr_t_{tile_sz}{multi_str}' / mode / category)
                 if crap_func:
                     crap_folder = ensure_folder(out / f'lr{up}_t_{tile_sz}{multi_str}' / mode / category)
@@ -287,4 +287,4 @@ def main(out: Param("dataset folder", Path, required=True),
                 fn = Path(tile_stat['fn'])
                 print(f'too big: {fn.stem}')
 
-    pd.DataFrame(tile_pull_info).to_csv(out/'tiles.csv', index = False)
+    pd.DataFrame(tile_pull_info).to_csv(out/f'tiles{multi_str}.csv', index = False)

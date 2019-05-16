@@ -120,7 +120,7 @@ def process_czi(item, proc_name, proc_func, out_fldr, truth, just_stats, n_depth
             offset_frames = n_depth // 2
             input_depth = slice(mid_depth - offset_frames, mid_depth + offset_frames + 1)
         elif n_time > 1:
-            offset_frames = n_times // 2
+            offset_frames = n_time // 2
             input_time = slice(mid_time - offset_frames, mid_time + offset_frames + 1)
 
         data, img_info = img_to_float(czi_f.asarray().astype(np.float32))
@@ -205,6 +205,7 @@ def process_subfolder(fldr, processor, out_fldr, truth_fldr, model_dir, just_sta
     }
     truth_map = build_truth_map(truth_fldr)
     proc_func, num_chan = get_named_processor(processor, model_dir)
+    print('processor:', num_chan)
     for item in fldr.iterdir():
         proc = proc_map.get(item.suffix, None)
         if proc:

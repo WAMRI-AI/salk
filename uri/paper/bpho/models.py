@@ -21,9 +21,9 @@ def original(img, **kwargs):
     return pred_img
 
 processors = {
-    'original': original,
-    'bilinear': bilinear,
-    'bicubic': bicubic
+    'original': (original, 1),
+    'bilinear': (bilinear, 1),
+    'bicubic':  (bicubic, 1)
 }
 
 def num_channels(learn):

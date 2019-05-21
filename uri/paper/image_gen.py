@@ -113,7 +113,7 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
                         pred_img8 = img_to_uint8(pred_img, img_info=img_info)
                         PIL.Image.fromarray(pred_img8).save(out_fn)
         elif n_time > 1:
-            times = 30
+            # times = 30
             offset_frames = n_time // 2
             for c in range(channels):
                 for z in range(depths):
@@ -136,7 +136,6 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
                         pred_img8 = img_to_uint8(pred_img, img_info=img_info)
                         imgs.append(pred_img8[None])
 
-                    set_trace()
                     all_y = np.concatenate(imgs)
                     save_name = f'{processor}.tif'
                     fldr_name = out_fn.parent/fn.stem
@@ -157,6 +156,8 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
                                 'Y': slice(0, y)
                         })
                         img = data[idx].copy()
+                        img, img_info = img_to_float(img)
+
                         tag = f'{c}_{t}_{z}'
                         out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
                         save_name = f'{processor}_{tag}.tif'

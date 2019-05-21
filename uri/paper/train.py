@@ -81,7 +81,8 @@ def main(
         loss_scale: Param('loss scale', float) = None,
         feat_loss: Param('bottleneck', action='store_true')=False,
         n_frames: Param('number of frames', int) = 1,
-        lr_type: Param('training input, (s)ingle, (t) multi or (z) multi', str)='s'
+        lr_type: Param('training input, (s)ingle, (t) multi or (z) multi', str)='s',
+        skip_train: Param('skip training, e.g. to adjust size', action='store_true') = False
 ):
     if lr_type == 's':
         z_frames, t_frames = 1, 1
@@ -161,12 +162,11 @@ def main(
         learn = learn.to_fp16(loss_scale=loss_scale)
     else:
         learn = learn.to_fp16()
-    learn.fit_one_cycle(cycles, lr)
+    if not skip_train:
+        learn.fit_one_cycle(cycles, lr)
 
     if gpu == 0 or gpu is None:
         learn.save(save_name)
         print(f'saved: {save_name}')
         learn.export(pickle_models/f'{save_name}_{size}.pkl')
-        learn.load(f'{save_name}_best_{size}')
-        learn.export(pickle_models/f'{save_name}_best_{size}.pkl')
         print('exported')

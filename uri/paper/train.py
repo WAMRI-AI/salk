@@ -82,6 +82,7 @@ def main(
         feat_loss: Param('bottleneck', action='store_true')=False,
         n_frames: Param('number of frames', int) = 1,
         lr_type: Param('training input, (s)ingle, (t) multi or (z) multi', str)='s',
+        plateau: Param('cut LR on plateaus', action='store_true')=False,
         skip_train: Param('skip training, e.g. to adjust size', action='store_true') = False
 ):
     if lr_type == 's':
@@ -123,7 +124,9 @@ def main(
 
     print('bs:', bs, 'size: ', size, 'ngpu:', n_gpus)
     data = get_data(bs, size, lr_tifs, hr_tifs, n_frames=n_frames,  max_zoom=4., use_cutout=cutout)
-    callback_fns = [partial(ReduceLROnPlateauCallback, patience=1)]
+    callback_fns = []
+    if plateau:
+        callback_fns.append(partial(ReduceLROnPlateauCallback, patience=1))
     if gpu == 0 or gpu is None:
         if feat_loss:
             callback_fns = [LossMetrics]

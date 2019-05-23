@@ -108,6 +108,7 @@ def get_xy_transforms(max_rotate=10., min_zoom=1., max_zoom=2., use_cutout=False
     if use_cutout: x_tfms[0].append(cutout(n_holes=(5,10)))
     if use_noise:
         x_tfms[0].append(my_noise(gauss_sigma=(0.01,0.05),pscale=(5,30)))
+        x_tfms[1].append(my_noise(gauss_sigma=(0.01,0.05),pscale=(5,30)))
 
     if xtra_tfms:
         for tfm in xtra_tfms:

@@ -80,7 +80,9 @@ def _down_up(x, scale=4, upsample=False, mode='bilinear'):
     return x
 down_up = TfmPixel(_down_up)
 
-def _my_noise(x, gauss_sigma:uniform=0.01, pscale:uniform=10):
+def _my_noise_old(x, gauss_sigma:uniform=0.01, pscale:uniform=10):
+    #print('noise')
+    #set_trace()
     xn = x.numpy()
     xorig_max = xn.max()
     xn = np.random.poisson(xn*pscale)/pscale
@@ -92,9 +94,30 @@ def _my_noise(x, gauss_sigma:uniform=0.01, pscale:uniform=10):
     xn *= xorig_max
     x = x.new(xn)
     return x
+
+
+def _my_noise(x, gauss_sigma:uniform=0.01, pscale:uniform=10):
+    xn = x.numpy()
+    xorig_max = xn.max()
+
+    # xn = random_noise(xn, mode='salt', amount=0.005)
+    # xn = random_noise(xn, mode='pepper', amount=0.005)
+    lvar = filters.gaussian(x, sigma=5) + 1e-10
+    xn = random_noise(xn, mode='localvar', local_vars=lvar*0.5)
+    xn = np.random.poisson(xn*pscale)/pscale
+    xn += np.random.normal(0, gauss_sigma*xn.std(), size=x.shape)
+    x = x.new(xn)
+    new_max = xn.max()
+    if new_max > 0:
+        xn /= new_max
+    xn *= xorig_max
+    return x
+
+
 my_noise = TfmPixel(_my_noise)
 
-def get_xy_transforms(max_rotate=10., min_zoom=1., max_zoom=2., use_cutout=False, use_noise=False, xtra_tfms = None):
+def get_xy_transforms(max_rotate=10., min_zoom=1., max_zoom=2., use_cutout=False, use_noise=False, xtra_tfms = None,
+                      gauss_sigma=(0.01,0.05), pscale=(5,30)):
     base_tfms = [[
             rand_crop(),
             dihedral_affine(),
@@ -107,8 +130,8 @@ def get_xy_transforms(max_rotate=10., min_zoom=1., max_zoom=2., use_cutout=False
     x_tfms = [[tfm for tfm in base_tfms[0]], [tfm for tfm in base_tfms[1]]]
     if use_cutout: x_tfms[0].append(cutout(n_holes=(5,10)))
     if use_noise:
-        x_tfms[0].append(my_noise(gauss_sigma=(0.01,0.05),pscale=(5,30)))
-        x_tfms[1].append(my_noise(gauss_sigma=(0.01,0.05),pscale=(5,30)))
+        x_tfms[0].append(my_noise(gauss_sigma=gauss_sigma, pscale=pscale))
+        #x_tfms[1].append(my_noise(gauss_sigma=(0.01,0.05),pscale=(5,30)))
 
     if xtra_tfms:
         for tfm in xtra_tfms:
@@ -707,7 +730,7 @@ def draw_random_tile(img_data, tile_sz, thresh, thresh_pct):
         found_tile = check_tile(tile, thresh, thresh_pct)
         # found_tile = True
         tries += 1
-        if tries > (max_tries/2): thresh_pct /=2
+        if tries > (max_tries/2): thresh_pct /= 2
         if tries > max_tries: found_tile = True
     box = [xs.start, ys.start, xs.stop, ys.stop]
     return PIL.Image.fromarray(tile), box

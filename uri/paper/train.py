@@ -12,20 +12,20 @@ from bpho.resnet import *
 
 torch.backends.cudnn.benchmark = True
 
-def get_src(x_data, y_data, n_frames=1):
+def get_src(x_data, y_data, n_frames=1, mode='L'):
     def map_to_hr(x):
         return y_data/x.relative_to(x_data).with_suffix('.tif')
 
     if n_frames == 1:
         src = (ImageImageList
-                .from_folder(x_data, convert_mode='L')
+                .from_folder(x_data, convert_mode=mode)
                 .split_by_folder()
-                .label_from_func(map_to_hr, convert_mode='L'))
+                .label_from_func(map_to_hr, convert_mode=mode))
     else:
         src = (MultiImageImageList
                 .from_folder(x_data, extensions=['.npy'])
                 .split_by_folder()
-                .label_from_func(map_to_hr, convert_mode='L'))
+                .label_from_func(map_to_hr, convert_mode=mode))
     return src
 
 
@@ -37,13 +37,18 @@ def get_data(bs, size, x_data, y_data,
              use_noise=True,
              scale=4,
              xtra_tfms=None,
+             gauss_sigma=(0.4,0.7),
+             pscale=(5,30),
+             mode='L',
              **kwargs):
-    src = get_src(x_data, y_data, n_frames=n_frames)
+    src = get_src(x_data, y_data, n_frames=n_frames, mode=mode)
     x_tfms, y_tfms = get_xy_transforms(
                           max_rotate=max_rotate,
                           min_zoom=min_zoom, max_zoom=max_zoom,
                           use_cutout=use_cutout,
                           use_noise=use_noise,
+                          gauss_sigma=gauss_sigma,
+                          pscale=pscale,
                           xtra_tfms = xtra_tfms)
     x_size = size // scale
     data = (src
@@ -72,18 +77,20 @@ def main(
         blur: Param('upsample blur', action='store_true')=True,
         final_blur: Param('final upsample blur', action='store_true')=False,
         bottle: Param('bottleneck', action='store_true')=True,
-        cutout: Param('bottleneck', action='store_true')=False,
+        cutout: Param('cutout', action='store_true')=False,
         rrdb: Param('use RRDB_Net', action='store_true')=False,
         nf: Param('rrdb nf', int) = 32,
         nb: Param('rrdb nb', int) = 32,
         gcval: Param('rrdb gc', int) = 32,
         clip_grad: Param('gradient clipping', float) = None,
         loss_scale: Param('loss scale', float) = None,
-        feat_loss: Param('bottleneck', action='store_true')=False,
+        feat_loss: Param('feat_loss', action='store_true')=False,
         n_frames: Param('number of frames', int) = 1,
         lr_type: Param('training input, (s)ingle, (t) multi or (z) multi', str)='s',
         plateau: Param('cut LR on plateaus', action='store_true')=False,
-        skip_train: Param('skip training, e.g. to adjust size', action='store_true') = False
+        old_unet: Param('use old unet_learner', action='store_true')=False,
+        skip_train: Param('skip training, e.g. to adjust size', action='store_true') = False,
+        mode: Param('image mode like L or RGB', str)='L'
 ):
     if lr_type == 's':
         z_frames, t_frames = 1, 1
@@ -115,7 +122,8 @@ def main(
     print('on gpu: ', gpu)
     n_gpus = num_distrib()
 
-    loss = get_feat_loss() if feat_loss else F.l1_loss
+    loss = get_feat_loss() if feat_loss else F.mse_loss # F.l1_loss
+    print('loss: ', loss)
     metrics = sr_metrics
 
     bs = max(bs, bs * n_gpus)
@@ -123,7 +131,7 @@ def main(
     arch = eval(arch)
 
     print('bs:', bs, 'size: ', size, 'ngpu:', n_gpus)
-    data = get_data(bs, size, lr_tifs, hr_tifs, n_frames=n_frames,  max_zoom=4., use_cutout=cutout)
+    data = get_data(bs, size, lr_tifs, hr_tifs, n_frames=n_frames,  max_zoom=4., use_cutout=cutout, mode=mode)
     callback_fns = []
     if plateau:
         callback_fns.append(partial(ReduceLROnPlateauCallback, patience=1))
@@ -149,8 +157,19 @@ def main(
             'bottle': bottle,
             'self_attention': attn
         }
-        learn = wnres_unet_learner(data, arch, in_c=n_frames, wnres_args=wnres_args, path=Path('.'),
-                                   loss_func=loss, metrics=metrics, model_dir=model_dir, callback_fns=callback_fns)
+        wd = 1e-3
+        if old_unet:
+            learn = unet_learner(data, arch, wd=wd, loss_func=loss,
+                                 metrics=metrics, callback_fns=callback_fns,
+                                 norm_type=NormType.Weight,
+                                 last_cross=True,
+                                 model_dir=model_dir, path=Path('.'),
+                                 **wnres_args)
+            learn.model = BilinearWrapper(learn.model)
+        else:
+            learn = wnres_unet_learner(data, arch, in_c=n_frames, wnres_args=wnres_args,
+                                       path=Path('.'), loss_func=loss, metrics=metrics,
+                                       model_dir=model_dir, callback_fns=callback_fns, wd=wd)
     gc.collect()
 
     if load_name:

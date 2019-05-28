@@ -28,7 +28,10 @@ processors = {
 
 def num_channels(learn):
     ps = [p for p in learn.model.parameters()]
-    return ps[1].shape[1]
+    if len(ps[1].shape) == 1:
+        return ps[0].shape[1]
+    else:
+        return ps[1].shape[1]
 
 def build_processor(name, model_dir):
     learn = load_learner(model_dir, f'{name}.pkl').to_fp16()

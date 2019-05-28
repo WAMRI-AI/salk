@@ -149,11 +149,10 @@ class MultiImageList(ImageList):
         return MultiImage(img_list)
 
     def reconstruct(self, t: Tensor):
-        #set_trace()
         n, h, w = t.shape
         n //= self.channels
-        one_img = t.view(self.channels, n * h, w)
-        return Image(one_img.float().clamp(min=0, max=1))
+        one_img = t.float().view(self.channels, n * h, w)
+        return Image(one_img.clamp(min=0, max=1))
 
 
 class NpyRawImageList(ImageList):

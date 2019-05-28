@@ -143,6 +143,7 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
                         fldr_name = fldr_name/f'{c}_{z}'
                     out_fldr = ensure_folder(fldr_name)
                     imageio.mimwrite(out_fldr/save_name, all_y) #, fps=30, macro_block_size=None) # for mp4
+                    imageio.mimwrite((out_fldr/save_name).with_suffix('.mp4'), all_y, fps=30, macro_block_size=None) # for mp4
         else:
             for c in range(channels):
                 for z in range(depths):

@@ -103,16 +103,17 @@ def get_tile_puller(tile_stat, crap_func, t_frames, z_frames):
         img_get._to_close = img_f
     else:
         pil_img = PIL.Image.open(fn)
-
         def pil_get(istat):
             c,z,t,x,y,mi,ma,is_uint8,rmax = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','uint8','rmax']]
-            start_z, end_z = z - half_z, z + half_z + 1
+            if half_t > 0: n_start, n_end = t-half_t, t+half_t+1
+            elif half_z > 0: n_start, n_end = z-half_z, z+half_z+1
+
             if is_uint8:
                 mi, ma, rmax = 0., 255.0, 255.0
 
             img_array = []
-            for iz in range(start_z, end_z):
-                pil_img.seek(z)
+            for ix in range(n_start, n_end):
+                pil_img.seek(ix)
                 pil_img.load()
                 img = np.array(pil_img)
                 if len(img.shape) > 2: img = img[:,:,0]
@@ -174,13 +175,14 @@ def get_tile_puller(tile_stat, crap_func, t_frames, z_frames):
     return puller
 
 def check_info(info, t_frames, z_frames):
+
     t_space = t_frames // 2
     z_space = z_frames // 2
 
     z_ok = (info['nz'] >= z_frames) and (info['z'] >= z_space) and (info['z'] < (info['nz']-z_space))
     t_ok = (info['nt'] >= t_frames) and (info['t'] >= t_space) and (info['t'] < (info['nt']-t_space))
 
-    return t_ok and z_ok 
+    return t_ok and z_ok
 
 
 

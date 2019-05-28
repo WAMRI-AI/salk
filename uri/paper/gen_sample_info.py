@@ -55,6 +55,8 @@ def process_czi(item, category, mode):
                                      'z': mid_depth, 't': t, 'c':channel, 'x': x, 'y': y})
     return tif_srcs
 
+def is_live(item):
+    return item.parent.parts[-3] == 'live'
 
 def process_tif(item, category, mode):
     tif_srcs = []
@@ -62,20 +64,26 @@ def process_tif(item, category, mode):
     n_frames = img.n_frames
     x,y = img.size
     is_multi = n_frames > 1
-    for z in range(n_frames):
-        img.seek(z)
+    for n in range(n_frames):
+        img.seek(n)
         img.load()
         img_data = np.array(img)
         dtype = img_data.dtype
         mi, ma = np.percentile(img_data, [2,99.99])
         if dtype == np.uint8: rmax = 255.
         else: rmax = img_data.max()
+        if is_live(item):
+            t, z = n, 0
+            nt, nz = n_frames, 1
+        else:
+            t, z = 0, n
+            nt, nz = 1, n_frames
+
         tif_srcs.append({'fn': item, 'ftype': 'tif', 'multi':int(is_multi), 'category': category, 'dsplit': mode,
                          'uint8': dtype==np.uint8, 'mi': mi, 'ma': ma, 'rmax': rmax,
                          'mean': img_data.mean(), 'sd': img_data.std(),
-                         'nc': 1, 'nz': n_frames, 'nt': 1,
-                         'z': z, 't': 0, 'c':0, 'x': x, 'y': y})
-
+                         'nc': 1, 'nz': nz, 'nt': nt,
+                         'z': z, 't': t, 'c':0, 'x': x, 'y': y})
     return tif_srcs
 
 def process_unk(item, category, mode):
@@ -101,6 +109,7 @@ def process_item(item, category, mode):
 def build_tifs(src, mbar=None):
     tif_srcs = []
     for mode in ['train', 'valid', 'test']:
+        live = src.parent.parts[-1] == 'live'
         src_dir = src / mode
         category = src.stem
         items = list(src_dir.iterdir()) if src_dir.exists() else []

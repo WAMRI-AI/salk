@@ -107,6 +107,7 @@ def get_tile_puller(tile_stat, crap_func, t_frames, z_frames):
             c,z,t,x,y,mi,ma,is_uint8,rmax = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','uint8','rmax']]
             if half_t > 0: n_start, n_end = t-half_t, t+half_t+1
             elif half_z > 0: n_start, n_end = z-half_z, z+half_z+1
+            else: n_start, n_end = 0,1
 
             if is_uint8:
                 mi, ma, rmax = 0., 255.0, 255.0

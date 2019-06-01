@@ -22,57 +22,36 @@ def check_dir(p):
     return p
 
 def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
-    print('process tif not done yet', fn.stem)
-    return
-    stats = []
-    truth_imgs = PIL.Image.open(truth) if truth and truth.exists() else None
-    with PIL.Image.open(item) as img_tif:
+    with PIL.Image.open(fn) as img_tif:
         n_frame = max(n_depth, n_time)
         offset_frame = n_frame // 2
         if n_frame > img_tif.n_frames: return []
-        mid_frame = img_tif.n_frames // 2
+
         if n_frame > 1:
             img_tifs = []
-            for i in range(mid_frame-offset_frame, mid_frame+offset_frame+1):
+            for i in range(offset_frame, img_tif.n_frames-offset_frame):
                 img_tif.seek(i)
                 img_tif.load()
                 img_tifs.append(np.array(img_tif).copy())
             imgs = np.stack(img_tifs)
             img, img_info = img_to_float(imgs)
+            out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
+            save_name = f'{processor}.tif'
+            imageio.mimwrite(out_fldr/save_name, imgs)
+            imageio.mimwrite((out_fldr/save_name).with_suffix('.mp4'), imgs, fps=30, macro_block_size=None) # for mp4
         else:
-            img_tif.seek(mid_frame)
-            img_tif.load()
-            img, img_info = img_to_float(np.array(img_tif))
+            for i in range(offset_frame, img_tif.n_frames-offset_frame):
+                img_tif.seek(i)
+                img_tif.load()
+                img = np.array(img_tif).copy()
+                img, img_info = img_to_float(img)
 
-        if truth_imgs:
-            truth_imgs.seek(mid_frame)
-            truth_imgs.load()
-            truth_img, truth_info = img_to_float(np.array(truth_imgs))
-        else: truth_img = None
-
-        tag = f'{mid_frame:05d}'
-        save_name = f'{proc_name}_{item.stem}_{tag}'
-        out_name = (out_fldr/save_name).with_suffix('.tif')
-        pred_img = None
-        if just_stats:
-            if out_name.exists():
-                pred_img, pred_info = img_to_float(np.array(PIL.Image.open(out_name)))
-
-        if pred_img is None:
-            pred_img = proc_func(img, img_info=img_info)
-            pred_img8 = img_to_uint8(pred_img, img_info=img_info)
-            PIL.Image.fromarray(pred_img8).save(out_name)
-
-        if not truth_img is None and not pred_img is None:
-            truth_folder = ensure_folder(out_fldr/'../truth')
-            truth_name = f'truth_{item.stem}_{tag}'
-            truth_img8 = img_to_uint8(truth_img, img_info=truth_info)
-            PIL.Image.fromarray(truth_img8).save((truth_folder/truth_name).with_suffix('.tif'))
-            istats = calc_stats(pred_img8, truth_img8)
-            if istats:
-                istats.update({'tag': tag, 'item': item.stem})
-                stats.append(istats)
-    return stats
+                tag = f'0_{i}_0'
+                out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
+                save_name = f'{processor}_{tag}.tif'
+                pred_img = proc_func(img, img_info=img_info)
+                pred_img8 = img_to_uint8(pred_img, img_info=img_info)
+                PIL.Image.fromarray(pred_img8).save(out_fldr/save_name)
 
 def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
     stats = []
@@ -89,7 +68,6 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
         if times < n_time: return
 
         if n_depth > 1:
-            set_trace()
             offset_frames = n_depth // 2
             for c in range(channels):
                 for t in range(times):

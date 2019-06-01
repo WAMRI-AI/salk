@@ -100,12 +100,12 @@ def _my_noise(x, gauss_sigma:uniform=0.01, pscale:uniform=10):
     xn = x.numpy()
     xorig_max = xn.max()
 
-    # xn = random_noise(xn, mode='salt', amount=0.005)
-    # xn = random_noise(xn, mode='pepper', amount=0.005)
+    xn = random_noise(xn, mode='salt', amount=0.005)
+    xn = random_noise(xn, mode='pepper', amount=0.005)
     lvar = filters.gaussian(x, sigma=5) + 1e-10
     xn = random_noise(xn, mode='localvar', local_vars=lvar*0.5)
-    xn = np.random.poisson(xn*pscale)/pscale
-    xn += np.random.normal(0, gauss_sigma*xn.std(), size=x.shape)
+    #xn = np.random.poisson(xn*pscale)/pscale
+    #xn += np.random.normal(0, gauss_sigma*xn.std(), size=x.shape)
     x = x.new(xn)
     new_max = xn.max()
     if new_max > 0:

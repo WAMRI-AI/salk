@@ -54,7 +54,7 @@ def get_data(bs, size, x_data, y_data,
     data = (src
             .transform(x_tfms, size=x_size)
             .transform_y(y_tfms, size=size)
-            .databunch(bs=bs, **kwargs).normalize(do_y=True))
+            .databunch(bs=bs, **kwargs)) #.normalize(do_y=True))
     data.c = 3
     return data
 
@@ -155,14 +155,14 @@ def main(
             'blur': blur,
             'blur_final': final_blur,
             'bottle': bottle,
-            'self_attention': attn
+            'self_attention': attn,
+            'last_cross': True
         }
         wd = 1e-3
         if old_unet:
             learn = unet_learner(data, arch, wd=wd, loss_func=loss,
                                  metrics=metrics, callback_fns=callback_fns,
                                  norm_type=NormType.Weight,
-                                 last_cross=True,
                                  model_dir=model_dir, path=Path('.'),
                                  **wnres_args)
             learn.model = BilinearWrapper(learn.model)

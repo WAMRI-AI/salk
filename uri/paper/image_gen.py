@@ -21,7 +21,7 @@ def check_dir(p):
         sys.exit(1)
     return p
 
-def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
+def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L'):
     with PIL.Image.open(fn) as img_tif:
         n_frame = max(n_depth, n_time)
         offset_frame = n_frame // 2
@@ -37,6 +37,8 @@ def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
             img, img_info = img_to_float(imgs)
             out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
             save_name = f'{processor}.tif'
+            pred_img = proc_func(img, img_info=img_info, mode=mode)
+            pred_img8 = img_to_uint8(pred_img, img_info=img_info)
             imageio.mimwrite(out_fldr/save_name, imgs)
             imageio.mimwrite((out_fldr/save_name).with_suffix('.mp4'), imgs, fps=30, macro_block_size=None) # for mp4
         else:
@@ -49,11 +51,11 @@ def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
                 tag = f'0_{i}_0'
                 out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
                 save_name = f'{processor}_{tag}.tif'
-                pred_img = proc_func(img, img_info=img_info)
+                pred_img = proc_func(img, img_info=img_info, mode=mode)
                 pred_img8 = img_to_uint8(pred_img, img_info=img_info)
                 PIL.Image.fromarray(pred_img8).save(out_fldr/save_name)
 
-def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
+def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L'):
     stats = []
     with czifile.CziFile(fn) as czi_f:
         proc_axes, proc_shape = get_czi_shape_info(czi_f)
@@ -87,7 +89,7 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
 
                         save_name = f'{proc_name}_{item.stem}_{tag}'
 
-                        pred_img = proc_func(img, img_info=img_info)
+                        pred_img = proc_func(img, img_info=img_info, mode=mode)
                         pred_img8 = img_to_uint8(pred_img, img_info=img_info)
                         PIL.Image.fromarray(pred_img8).save(out_fn)
         elif n_time > 1:
@@ -110,7 +112,7 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
                         img = data[idx].copy()
                         img, img_info = img_to_float(img)
 
-                        pred_img = proc_func(img, img_info=img_info)
+                        pred_img = proc_func(img, img_info=img_info, mode=mode)
                         pred_img8 = img_to_uint8(pred_img, img_info=img_info)
                         imgs.append(pred_img8[None])
 
@@ -140,11 +142,11 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1):
                         tag = f'{c}_{t}_{z}'
                         out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
                         save_name = f'{processor}_{tag}.tif'
-                        pred_img = proc_func(img, img_info=img_info)
+                        pred_img = proc_func(img, img_info=img_info, mode=mode)
                         pred_img8 = img_to_uint8(pred_img, img_info=img_info)
                         PIL.Image.fromarray(pred_img8).save(out_fldr/save_name)
 
-def process_files(src_dir, out_dir, model_dir, processor, mbar=None):
+def process_files(src_dir, out_dir, model_dir, processor, mode, mbar=None):
     proc_map = {
         '.tif': process_tif,
         '.czi': process_czi
@@ -161,7 +163,7 @@ def process_files(src_dir, out_dir, model_dir, processor, mbar=None):
             n_depth = n_time = 1
             if 'multiz' in processor: n_depth = num_chan
             if 'multit' in processor: n_time = num_chan
-            file_proc(fn, processor, proc_func, out_fn, n_depth=n_depth, n_time=n_time)
+            file_proc(fn, processor, proc_func, out_fn, n_depth=n_depth, n_time=n_time, mode=mode)
 
 @call_parse
 def main(
@@ -171,6 +173,7 @@ def main(
         gpu: Param("GPU to run on", int, required=True) = None,
         models: Param("list models to run", str, nargs='+')=None,
         baselines: Param("build bilinear and bicubic", action='store_true')=False,
+        mode: Param("L or RGBA", str)='L',
 ):
     print('on gpu: ', gpu)
     torch.cuda.set_device(gpu)
@@ -186,4 +189,4 @@ def main(
     mbar = master_bar(processors)
     for proc in mbar:
         mbar.write(f'processing {proc}')
-        process_files(src_dir, out_dir, model_dir, proc, mbar=mbar)
+        process_files(src_dir, out_dir, model_dir, proc, mode, mbar=mbar)

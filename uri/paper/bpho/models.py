@@ -36,8 +36,11 @@ def num_channels(learn):
 def build_processor(name, model_dir):
     learn = load_learner(model_dir, f'{name}.pkl').to_fp16()
     tile_sz = int(name.split('_')[-1])
-    def learn_processor(img, img_info=None):
-        if len(img.shape) == 2: img = img[None]
+    def learn_processor(img, img_info=None, mode='L'):
+        if len(img.shape) == 2:
+            img = img[None]
+            if mode == 'RGB': img = img.repeat(3, axis=0)
+
         pred_img = unet_image_from_tiles_blend(learn, img, tile_sz=tile_sz, img_info=img_info)
         return pred_img
 

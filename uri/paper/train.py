@@ -54,7 +54,7 @@ def get_data(bs, size, x_data, y_data,
     data = (src
             .transform(x_tfms, size=x_size)
             .transform_y(y_tfms, size=size)
-            .databunch(bs=bs, **kwargs)) #.normalize(do_y=True))
+            .databunch(bs=bs, **kwargs).normalize(do_y=True))
     data.c = 3
     return data
 
@@ -73,9 +73,10 @@ def main(
         save_name: Param("model save name", str) = 'combo',
         datasetname: Param('dataset name', str) = 'tiles_002',
         tile_sz: Param('tile_sz', int) = 256,
-        attn: Param('self attention', action='store_true')=True,
-        blur: Param('upsample blur', action='store_true')=True,
-        final_blur: Param('final upsample blur', action='store_true')=False,
+        attn: Param('self attention', bool)=True,
+        blur: Param('upsample blur', bool)=True,
+        final_blur: Param('final upsample blur', bool)=True,
+        last_cross: Param('last_cross', bool)=True,
         bottle: Param('bottleneck', action='store_true')=True,
         cutout: Param('cutout', action='store_true')=False,
         rrdb: Param('use RRDB_Net', action='store_true')=False,

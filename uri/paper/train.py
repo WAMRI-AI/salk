@@ -5,6 +5,7 @@ from fastai.vision import *
 from fastai.callbacks import *
 from fastai.distributed import *
 from fastai.vision.models.unet import DynamicUnet
+from fastai.vision.models import resnet18, resnet34, resnet50
 from skimage.util import random_noise
 from skimage import filters
 from bpho import *
@@ -67,6 +68,10 @@ def main(
         arch: Param("encode architecture", str) = 'wnresnet34',
         bs: Param("batch size per gpu", int) = 8,
         lr: Param("learning rate", float) = 1e-4,
+        lr_start: Param("learning rate start", float) = None,
+        noise: Param("add dynamic crappifier", action='store_true') = False,
+        freeze: Param("learning rate", action='store_true') = False,
+        pretrain: Param("arch pre-trained", action='store_true') = False,
         size: Param("img size", int) = 256,
         cycles: Param("num cyles", int) = 5,
         load_name: Param("load model name", str) = None,
@@ -132,7 +137,7 @@ def main(
     arch = eval(arch)
 
     print('bs:', bs, 'size: ', size, 'ngpu:', n_gpus)
-    data = get_data(bs, size, lr_tifs, hr_tifs, n_frames=n_frames,  max_zoom=4., use_cutout=cutout, mode=mode)
+    data = get_data(bs, size, lr_tifs, hr_tifs, n_frames=n_frames,  max_zoom=4., use_cutout=cutout, use_noise=noise, mode=mode)
     callback_fns = []
     if plateau:
         callback_fns.append(partial(ReduceLROnPlateauCallback, patience=1))
@@ -177,6 +182,9 @@ def main(
         learn = learn.load(f'{load_name}')
         print(f'loaded {load_name}')
 
+    if freeze:
+        learn.freeze()
+
     if gpu is None: learn.model = nn.DataParallel(learn.model)
     else: learn.to_distributed(gpu)
     if not clip_grad is None:
@@ -185,6 +193,9 @@ def main(
         learn = learn.to_fp16(loss_scale=loss_scale)
     else:
         learn = learn.to_fp16()
+
+    if not lr_start is None: lr = slice(lr_start, lr)
+    else: lr = slice(None, lr, None)
     if not skip_train:
         learn.fit_one_cycle(cycles, lr)
 

@@ -1,8 +1,8 @@
 "xres unet building functions"
 from fastai import *
 from fastai.vision import *
-from fastai.vision.models.xresnet import *
 from fastai.vision.models.unet import DynamicUnet
+from fastai.vision.learner import cnn_config
 
 __all__ = ['wnres_unet_model', 'wnres_unet_learner', 'BilinearWrapper']
 
@@ -17,8 +17,11 @@ class BilinearWrapper(nn.Module):
         return self.model(F.interpolate(x, scale_factor=self.scale, mode=self.mode, align_corners=False))
 
 def wnres_unet_model(in_c, out_c, arch, blur=True, blur_final=True, self_attention=True, last_cross=True, bottle=True, norm_type=NormType.Weight, **wnres_args):
-    body = nn.Sequential(*list(arch(c_in=in_c).children())[:-2])
-    print('blur', blur, 'blur_final', blur_final)
+    meta = cnn_config(arch)
+    enc_model = arch(c_in=in_c)
+    cut = cnn_config(arch)['cut']
+    body = nn.Sequential(*list(enc_model.children())[:cut])
+
     model = DynamicUnet(body,
                         n_classes=out_c,
                         blur=blur,
@@ -27,18 +30,18 @@ def wnres_unet_model(in_c, out_c, arch, blur=True, blur_final=True, self_attenti
                         norm_type=norm_type,
                         last_cross=last_cross,
                         bottle=bottle, **wnres_args)
-    return model
+    return model, meta
 
 
 def wnres_unet_learner(data, arch, in_c=1, out_c=1, wnres_args=None, bilinear_upsample=True, **kwargs):
     if wnres_args is None: wnres_args = {}
-
-    model = wnres_unet_model(in_c, out_c, arch, **wnres_args)
-    if bilinear_upsample:
-        model = BilinearWrapper(model)
+    model, meta = wnres_unet_model(in_c, out_c, arch, **wnres_args)
     learn = Learner(data, model, **kwargs)
+    learn.split(meta['split'])
+    apply_init(model[2], nn.init.kaiming_normal_)
+    if bilinear_upsample:
+        learn.model = BilinearWrapper(learn.model)
     return learn
-
 
 def image_from_tiles(learn, img, tile_sz=128, scale=4):
     pimg = PIL.Image.fromarray((img * 255).astype(np.uint8),

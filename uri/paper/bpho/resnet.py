@@ -2,6 +2,7 @@ import torch.nn as nn
 import torch,math,sys
 import torch.utils.model_zoo as model_zoo
 from functools import partial
+import fastai.vision.learner as fvl
 
 __all__ = ['WNResNet', 'wnresnet18', 'wnresnet34', 'wnresnet50', 'wnresnet101', 'wnresnet152']
 
@@ -78,6 +79,9 @@ def wnresnet(expansion, n_layers, name, pretrained=False, **kwargs):
     if pretrained: model.load_state_dict(model_zoo.load_url(model_urls[name]))
     return model
 
+def _wnresnet_split(m:nn.Module): return (m[0][6],m[1])
+_wnresnet_meta     = {'cut':-2, 'split':_wnresnet_split }
+
 me = sys.modules[__name__]
 for n,e,l in [
     [ 18 , 1, [2,2,2 ,2] ],
@@ -88,3 +92,5 @@ for n,e,l in [
 ]:
     name = f'wnresnet{n}'
     setattr(me, name, partial(wnresnet, expansion=e, n_layers=l, name=name))
+    arch = getattr(me, name)
+    fvl.model_meta[arch] = {**_wnresnet_meta}

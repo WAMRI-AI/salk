@@ -55,7 +55,7 @@ def get_data(bs, size, x_data, y_data,
     data = (src
             .transform(x_tfms, size=x_size)
             .transform_y(y_tfms, size=size)
-            .databunch(bs=bs, **kwargs).normalize(do_y=True))
+            .databunch(bs=bs, **kwargs)) #.normalize(do_y=True))
     data.c = 3
     return data
 

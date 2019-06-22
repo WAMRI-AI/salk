@@ -32,6 +32,9 @@ def process_czi(item, category, mode):
         is_multi = (times > 1) or (depths > 1)
 
         data = czi_f.asarray()
+        all_rmax = data.max()
+        all_mi, all_ma = np.percentile(data, [2,99.99])
+
         dtype = data.dtype
         for channel in range(channels):
             for z in depth_range:
@@ -50,6 +53,7 @@ def process_czi(item, category, mode):
                     else: rmax = img.max()
                     tif_srcs.append({'fn': item, 'ftype': 'czi', 'multi':int(is_multi), 'category': category, 'dsplit': mode,
                                      'uint8': dtype == np.uint8, 'mi': mi, 'ma': ma, 'rmax': rmax,
+                                     'all_rmax': all_rmax, 'all_mi': all_mi, 'all_ma': all_ma,
                                      'mean': img.mean(), 'sd': img.std(),
                                      'nc': channels, 'nz': depths, 'nt': times,
                                      'z': mid_depth, 't': t, 'c':channel, 'x': x, 'y': y})
@@ -64,10 +68,19 @@ def process_tif(item, category, mode):
     n_frames = img.n_frames
     x,y = img.size
     is_multi = n_frames > 1
+
+    data = []
     for n in range(n_frames):
         img.seek(n)
         img.load()
         img_data = np.array(img)
+        data.append(img_data)
+
+    data = np.stack(data)
+    all_rmax = data.max()
+    all_mi, all_ma = np.percentile(data, [2,99.99])
+
+    for img_data in data:
         dtype = img_data.dtype
         mi, ma = np.percentile(img_data, [2,99.99])
         if dtype == np.uint8: rmax = 255.
@@ -81,6 +94,7 @@ def process_tif(item, category, mode):
 
         tif_srcs.append({'fn': item, 'ftype': 'tif', 'multi':int(is_multi), 'category': category, 'dsplit': mode,
                          'uint8': dtype==np.uint8, 'mi': mi, 'ma': ma, 'rmax': rmax,
+                         'all_rmax': all_rmax, 'all_mi': all_mi, 'all_ma': all_ma,
                          'mean': img_data.mean(), 'sd': img_data.std(),
                          'nc': 1, 'nz': nz, 'nt': nt,
                          'z': z, 't': t, 'c':0, 'x': x, 'y': y})
@@ -144,4 +158,4 @@ def main(out: Param("tif source name", Path, required=True),
         tif_srcs += build_tifs(src, mbar=mbar)
 
     tif_src_df = pd.DataFrame(tif_srcs)
-    tif_src_df[['category','dsplit','multi','ftype','uint8','mean','sd','mi','ma','rmax','nc','nz','nt','c','z','t','x','y','fn']].to_csv(out, header=True, index=False)
+    tif_src_df[['category','dsplit','multi','ftype','uint8','mean','sd','all_rmax','all_ma','all_ma','mi','ma','rmax','nc','nz','nt','c','z','t','x','y','fn']].to_csv(out, header=True, index=False)

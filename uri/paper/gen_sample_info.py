@@ -80,7 +80,8 @@ def process_tif(item, category, mode):
     all_rmax = data.max()
     all_mi, all_ma = np.percentile(data, [2,99.99])
 
-    for img_data in data:
+    for n in range(n_frames):
+        img_data = data[n]
         dtype = img_data.dtype
         mi, ma = np.percentile(img_data, [2,99.99])
         if dtype == np.uint8: rmax = 255.
@@ -134,7 +135,7 @@ def build_tifs(src, mbar=None):
     return tif_srcs
 
 @call_parse
-def main(out: Param("tif source name", Path, required=True),
+def main(out: Param("tif output name", Path, required=True),
          sources: Param('src folders', Path, nargs='...', opt=False) = None,
          only: Param('whitelist subfolders to include', str, nargs='+') = None,
          skip: Param("subfolders to skip", str, nargs='+') = None):

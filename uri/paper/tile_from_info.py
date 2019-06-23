@@ -1,4 +1,3 @@
-
 import yaml
 
 from fastai.script import *
@@ -80,9 +79,10 @@ def get_tile_puller(tile_stat, crap_func, t_frames, z_frames):
         img_data = img_data.astype(np.float32)
 
         def czi_get(istat):
-            c,z,t,x,y,mi,ma,is_uint8,rmax = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','uint8','rmax']]
+            c,z,t,x,y,mi,ma,is_uint8,rmax,all_rmax,all_ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','uint8','rmax','all_rmax','all_ma']]
             if is_uint8:
                 mi, ma, rmax = 0., 255.0, 255.0
+                all_ma, all_rmax = 255.0, 255.0
 
             t_slice = slice(t-half_t, t+half_t+1) if half_t > 0 else t
             z_slice = slice(z-half_z, z+half_z+1) if half_z > 0 else z
@@ -95,7 +95,7 @@ def get_tile_puller(tile_stat, crap_func, t_frames, z_frames):
                     'Y': slice(0, y)
                 })
             img = img_data[idx].copy()
-            img /= rmax
+            img /= all_rmax
             if len(img.shape) <= 2: img = img[None]
             return img
 
@@ -104,13 +104,14 @@ def get_tile_puller(tile_stat, crap_func, t_frames, z_frames):
     else:
         pil_img = PIL.Image.open(fn)
         def pil_get(istat):
-            c,z,t,x,y,mi,ma,is_uint8,rmax = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','uint8','rmax']]
+            c,z,t,x,y,mi,ma,is_uint8,rmax,all_rmax,all_ma = [istat[fld] for fld in ['c','z','t','x','y','mi','ma','uint8','rmax','all_rmax','all_ma']]
             if half_t > 0: n_start, n_end = t-half_t, t+half_t+1
             elif half_z > 0: n_start, n_end = z-half_z, z+half_z+1
             else: n_start, n_end = 0,1
 
             if is_uint8:
                 mi, ma, rmax = 0., 255.0, 255.0
+                all_ma, all_rmax = 255.0, 255.0
 
             img_array = []
             for ix in range(n_start, n_end):
@@ -122,7 +123,7 @@ def get_tile_puller(tile_stat, crap_func, t_frames, z_frames):
 
             img = np.stack(img_array)
             img = img.astype(np.float32)
-            img /= rmax
+            img /= all_rmax
             return img
 
         img_get = pil_get
@@ -176,7 +177,6 @@ def get_tile_puller(tile_stat, crap_func, t_frames, z_frames):
     return puller
 
 def check_info(info, t_frames, z_frames):
-
     t_space = t_frames // 2
     z_space = z_frames // 2
 

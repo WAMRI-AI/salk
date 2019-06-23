@@ -38,7 +38,7 @@ def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L')
             out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
             save_name = f'{processor}.tif'
             pred_img = proc_func(img, img_info=img_info, mode=mode)
-            pred_img8 = img_to_uint8(pred_img, img_info=img_info)
+            pred_img8 = (pred_img * np.iinfo(np.uint8).max).astype(np.uint8)
             imageio.mimwrite(out_fldr/save_name, imgs)
             imageio.mimwrite((out_fldr/save_name).with_suffix('.mp4'), imgs, fps=30, macro_block_size=None) # for mp4
         else:
@@ -52,7 +52,7 @@ def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L')
                 out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
                 save_name = f'{processor}_{tag}.tif'
                 pred_img = proc_func(img, img_info=img_info, mode=mode)
-                pred_img8 = img_to_uint8(pred_img, img_info=img_info)
+                pred_img8 = (pred_img * np.iinfo(np.uint8).max).astype(np.uint8)
                 PIL.Image.fromarray(pred_img8).save(out_fldr/save_name)
 
 def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L'):
@@ -65,6 +65,8 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L')
         x, y = proc_shape['X'], proc_shape['Y']
 
         data = czi_f.asarray().astype(np.float32)
+        data, img_info = img_to_float(data)
+        img_max = img_info['real_max']
 
         if depths < n_depth: return
         if times < n_time: return
@@ -84,13 +86,12 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L')
                                 'Y': slice(0, y)
                         })
                         img = data[idx].copy()
-                        img, img_info = img_to_float(img)
                         tag = f'{c}_{t}_{z+offset_frames}_'
 
                         save_name = f'{proc_name}_{item.stem}_{tag}'
 
                         pred_img = proc_func(img, img_info=img_info, mode=mode)
-                        pred_img8 = img_to_uint8(pred_img, img_info=img_info)
+                        pred_img8 = (pred_img * np.iinfo(np.uint8).max).astype(np.uint8)
                         PIL.Image.fromarray(pred_img8).save(out_fn)
         elif n_time > 1:
             # times = 30
@@ -110,10 +111,8 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L')
                                 'Y': slice(0, y)
                         })
                         img = data[idx].copy()
-                        img, img_info = img_to_float(img)
-
                         pred_img = proc_func(img, img_info=img_info, mode=mode)
-                        pred_img8 = img_to_uint8(pred_img, img_info=img_info)
+                        pred_img8 = (pred_img * np.iinfo(np.uint8).max).astype(np.uint8)
                         imgs.append(pred_img8[None])
 
                     all_y = np.concatenate(imgs)
@@ -137,13 +136,11 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L')
                                 'Y': slice(0, y)
                         })
                         img = data[idx].copy()
-                        img, img_info = img_to_float(img)
-
                         tag = f'{c}_{t}_{z}'
                         out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
                         save_name = f'{processor}_{tag}.tif'
                         pred_img = proc_func(img, img_info=img_info, mode=mode)
-                        pred_img8 = img_to_uint8(pred_img, img_info=img_info)
+                        pred_img8 = (pred_img * np.iinfo(np.uint8).max).astype(np.uint8)
                         PIL.Image.fromarray(pred_img8).save(out_fldr/save_name)
 
 def process_files(src_dir, out_dir, model_dir, processor, mode, mbar=None):

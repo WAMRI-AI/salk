@@ -209,10 +209,11 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
     n_frames = in_img.shape[0]
 
     if img_info:
-        mi, ma, imax = [img_info[fld] for fld in ['mi','ma','img_max']]
-        in_img = ((in_img - mi) / (ma - mi + 1e-20)).clip(0.,1.)
+        mi, ma, imax, real_max = [img_info[fld] for fld in ['mi','ma','img_max','real_max']]
+        in_img /= real_max
+        # in_img = ((in_img - mi) / (ma - mi + 1e-20)).clip(0.,1.)
     else:
-        mi, ma = 0., 1.
+        mi, ma, imax, real_max = 0., 1., 1., 1.
 
     in_img  = np.stack([npzoom(in_img[i], scale, order=1) for i in range(n_frames)])
     overlap = int(tile_sz*(overlap_pct/100.) // 2 * 2)
@@ -284,10 +285,8 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
     for xs,ys in blur_rects:
         assembled[xs,ys] = gaussian(assembled[xs,ys], sigma=1.0)
 
-    assembled -= assembled.min()
-    assembled /= assembled.max()
-    assembled *= (ma - mi)
-    assembled += mi
+    # if assembled.min() < 0: assembled -= assembled.min()
+    # assembled += imax
     # assembled *= imax
     # assembled *= (ma - mi)
     # assembled += mi
@@ -538,8 +537,6 @@ def tif_predict_images(learn,
     for t in progress_bar(list(range(times))):
         img = imgs[t]
         img = img.copy()
-        pred = unet_image_from_tiles_blend(learn, img[None], tile_sz=size, img_info=img_info)
-        preds.append(pred[None])
 
     if len(preds) > 0:
         all_y = img_to_uint8(np.concatenate(preds))

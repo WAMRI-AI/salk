@@ -291,7 +291,7 @@ def unet_image_from_tiles_blend(learn, in_img, tile_sz=256, scale=4, overlap_pct
     # assembled *= (ma - mi)
     # assembled += mi
 
-    return assembled.astype(np.float32)
+    return assembled.astype(np.float32).clip(0.,1.)
 
 
 def unet_image_from_tiles(learn, in_img, tile_sz=128, scale=4):

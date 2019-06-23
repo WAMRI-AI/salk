@@ -66,7 +66,12 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L')
 
         data = czi_f.asarray().astype(np.float32)
         data, img_info = img_to_float(data)
-        img_max = img_info['real_max']
+        # mi, ma = img_info['mi'], img_info['ma']
+        # data = np.clip(data, mi, ma)
+        # data -= mi
+        # img_info['real_max'] = data.max()
+        # img_info['ma'] = data.max()
+        # img_info['mi'] = 0.
 
         if depths < n_depth: return
         if times < n_time: return

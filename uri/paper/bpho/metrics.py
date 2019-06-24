@@ -101,4 +101,79 @@ def psnr(pred, targs):
 def mse(pred, targs):
     return F.mse_loss(pred, targs)
 
-sr_metrics = [ssim, psnr]
+def normalize(x, pmin=3, pmax=99.8, axis=None, clip=False, eps=1e-20, dtype=np.float32):
+    """Percentile-based image normalization."""
+
+    mi = np.percentile(x,pmin,axis=axis,keepdims=True)
+    ma = np.percentile(x,pmax,axis=axis,keepdims=True)
+    return normalize_mi_ma(x, mi, ma, clip=clip, eps=eps, dtype=dtype)
+
+
+def normalize_mi_ma(x, mi, ma, clip=False, eps=1e-20, dtype=np.float32):
+    if dtype is not None:
+        x   = x.astype(dtype,copy=False)
+        mi  = dtype(mi) if np.isscalar(mi) else mi.astype(dtype,copy=False)
+        ma  = dtype(ma) if np.isscalar(ma) else ma.astype(dtype,copy=False)
+        eps = dtype(eps)
+
+    try:
+        import numexpr
+        x = numexpr.evaluate("(x - mi) / ( ma - mi + eps )")
+    except ImportError:
+        x =                   (x - mi) / ( ma - mi + eps )
+
+    if clip:
+        x = np.clip(x,0,1)
+
+    return x
+
+
+def normalize_minmse(x, target):
+    """Affine rescaling of x, such that the mean squared error to target is minimal."""
+    cov = np.cov(x.flatten(),target.flatten())
+    alpha = cov[0,1] / (cov[0,0]+1e-10)
+    beta = target.mean() - alpha*x.mean()
+    return alpha*x + beta
+
+
+def norm_minmse(gt, x, normalize_gt=True):
+    """
+    normalizes and affinely scales an image pair such that the MSE is minimized
+
+    Parameters
+     ----------
+    gt: ndarray
+        the ground truth image
+    x: ndarray
+        the image that will be affinely scaled
+    normalize_gt: bool
+        set to True of gt image should be normalized (default)
+
+    Returns
+    -------
+    gt_scaled, x_scaled
+
+    """
+    if normalize_gt:
+        gt = normalize(gt, 0.1, 99.9, clip=False).astype(np.float32, copy = False)
+    x = x.astype(np.float32, copy=False) - np.mean(x)
+    gt = gt.astype(np.float32, copy=False) - np.mean(gt)
+    scale = np.cov(x.flatten(), gt.flatten())[0, 1] / np.var(x.flatten())
+    return gt, scale * x
+
+
+def norm_ssim(pred, targs):
+    np_targ = targs.cpu().numpy()
+    np_pred = pred.cpu().numpy()
+    np_targ, np_pred = norm_minmse(np_targ, np_pred)
+    return ssim(torch.from_numpy(np_pred).to(pred.device),
+                torch.from_numpy(np_targ).to(targs.device))
+
+def norm_psnr(pred, targs):
+    np_targ = targs.cpu().numpy()
+    np_pred = pred.cpu().numpy()
+    np_targ, np_pred = norm_minmse(np_targ, np_pred)
+    return psnr(torch.from_numpy(np_pred).to(pred.device),
+                torch.from_numpy(np_targ).to(targs.device))
+
+sr_metrics = [ssim, psnr, norm_ssim, norm_psnr]

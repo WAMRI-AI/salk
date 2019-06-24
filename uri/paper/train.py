@@ -96,7 +96,8 @@ def main(
         plateau: Param('cut LR on plateaus', action='store_true')=False,
         old_unet: Param('use old unet_learner', action='store_true')=False,
         skip_train: Param('skip training, e.g. to adjust size', action='store_true') = False,
-        mode: Param('image mode like L or RGB', str)='L'
+        mode: Param('image mode like L or RGB', str)='L',
+        debug: Param('debug mode', action='store_true')=False,
 ):
     if lr_type == 's':
         z_frames, t_frames = 1, 1
@@ -124,11 +125,16 @@ def main(
 
     model_dir = 'models'
 
-    gpu = setup_distrib(gpu)
-    print('on gpu: ', gpu)
-    n_gpus = num_distrib()
+    if not debug:
+        gpu = setup_distrib(gpu)
+        print('on gpu: ', gpu)
+        n_gpus = num_distrib()
+    else:
+        print('debug mode')
+        gpu = 0
+        n_gpus = 0
 
-    loss = get_feat_loss() if feat_loss else F.mse_loss # F.l1_loss
+    loss = get_feat_loss() if feat_loss else F.l1_loss #F.mse_loss # F.l1_loss
     print('loss: ', loss)
     metrics = sr_metrics
 
@@ -185,8 +191,10 @@ def main(
     if freeze:
         learn.freeze()
 
-    if gpu is None: learn.model = nn.DataParallel(learn.model)
-    else: learn.to_distributed(gpu)
+    if not debug:
+        if gpu is None: learn.model = nn.DataParallel(learn.model)
+        else: learn.to_distributed(gpu)
+
     if not clip_grad is None:
         learn = learn.clip_grad(clip_grad)
     if not loss_scale is None:

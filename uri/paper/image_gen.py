@@ -24,21 +24,31 @@ def check_dir(p):
 def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L'):
     with PIL.Image.open(fn) as img_tif:
         n_frame = max(n_depth, n_time)
-        offset_frame = n_frame // 2
+        offset_frames = n_frame // 2
         if n_frame > img_tif.n_frames: return []
 
         if n_frame > 1:
+            times = img_tif.n_frames
             img_tifs = []
-            for i in range(offset_frame, img_tif.n_frames-offset_frame):
+            for i in range(times):
                 img_tif.seek(i)
                 img_tif.load()
                 img_tifs.append(np.array(img_tif).copy())
-            imgs = np.stack(img_tifs)
-            img, img_info = img_to_float(imgs)
+            data = np.stack(img_tifs).astype(np.float32)
+            data, img_info = img_to_float(data)
+
+            img_tiffs = []
+            time_range = list(range(offset_frames, times - offset_frames))
+            for t in progress_bar(time_range):
+                time_slice = slice(t-offset_frames, t+offset_frames+1)
+                img = data[time_slice].copy()
+                pred_img = proc_func(img, img_info=img_info, mode=mode)
+                pred_img8 = (pred_img * np.iinfo(np.uint8).max).astype(np.uint8)
+                img_tiffs.append(pred_img8[None])
+
+            imgs = np.concatenate(img_tiffs)
             out_fldr = ensure_folder(out_fn.parent/out_fn.stem)
             save_name = f'{processor}.tif'
-            pred_img = proc_func(img, img_info=img_info, mode=mode)
-            pred_img8 = (pred_img * np.iinfo(np.uint8).max).astype(np.uint8)
             imageio.mimwrite(out_fldr/save_name, imgs)
             imageio.mimwrite((out_fldr/save_name).with_suffix('.mp4'), imgs, fps=30, macro_block_size=None) # for mp4
         else:

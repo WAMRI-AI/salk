@@ -41,6 +41,7 @@ def get_data(bs, size, x_data, y_data,
              gauss_sigma=(0.4,0.7),
              pscale=(5,30),
              mode='L',
+             norm=False,
              **kwargs):
     src = get_src(x_data, y_data, n_frames=n_frames, mode=mode)
     x_tfms, y_tfms = get_xy_transforms(
@@ -55,7 +56,9 @@ def get_data(bs, size, x_data, y_data,
     data = (src
             .transform(x_tfms, size=x_size)
             .transform_y(y_tfms, size=size)
-            .databunch(bs=bs, **kwargs)) #.normalize(do_y=True))
+            .databunch(bs=bs, **kwargs))
+    if norm:
+        data = data.normalize(do_y=True)
     data.c = 3
     return data
 
@@ -97,7 +100,9 @@ def main(
         old_unet: Param('use old unet_learner', action='store_true')=False,
         skip_train: Param('skip training, e.g. to adjust size', action='store_true') = False,
         mode: Param('image mode like L or RGB', str)='L',
-        debug: Param('debug mode', action='store_true')=False,
+        norm: Param('normalize data', action='store_true')=False,
+        l1_loss: Param('use L1 loss', action='store_true')=False,
+        debug: Param('debug mode', action='store_true')=False
 ):
     if lr_type == 's':
         z_frames, t_frames = 1, 1
@@ -134,7 +139,9 @@ def main(
         gpu = 0
         n_gpus = 0
 
-    loss = get_feat_loss() if feat_loss else F.l1_loss #F.mse_loss # F.l1_loss
+    if feat_loss: loss = get_feat_loss()
+    elif l1_loss: loss = F.l1_loss
+    else loss = F.mse_loss 
     print('loss: ', loss)
     metrics = sr_metrics
 
@@ -143,7 +150,8 @@ def main(
     arch = eval(arch)
 
     print('bs:', bs, 'size: ', size, 'ngpu:', n_gpus)
-    data = get_data(bs, size, lr_tifs, hr_tifs, n_frames=n_frames,  max_zoom=4., use_cutout=cutout, use_noise=noise, mode=mode)
+    data = get_data(bs, size, lr_tifs, hr_tifs, n_frames=n_frames,  max_zoom=4., 
+                    use_cutout=cutout, use_noise=noise, mode=mode, norm=norm)
     callback_fns = []
     if plateau:
         callback_fns.append(partial(ReduceLROnPlateauCallback, patience=1))

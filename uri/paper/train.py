@@ -141,7 +141,7 @@ def main(
 
     if feat_loss: loss = get_feat_loss()
     elif l1_loss: loss = F.l1_loss
-    else loss = F.mse_loss 
+    else: loss = F.mse_loss 
     print('loss: ', loss)
     metrics = sr_metrics
 

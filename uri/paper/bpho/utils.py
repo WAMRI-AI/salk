@@ -25,7 +25,7 @@ from torchvision.models import vgg16_bn
 
 __all__ = ['generate_movies', 'generate_tifs', 'ensure_folder', 'subfolders',
            'build_tile_info', 'generate_tiles', 'unet_image_from_tiles_blend',
-           'get_xy_transforms', 'get_feat_loss',
+           'get_xy_transforms', 'get_feat_loss', 'unet_image_from_tiles_partialsave',
            'draw_random_tile', 'img_to_float', 'img_to_uint8']
 
 
@@ -153,6 +153,87 @@ def make_mask(shape, overlap, top=True, left=True, right=True, bottom=True):
                 if right: mask[i,w-j-1] = min((j+1)/overlap, mask[i,w-j-1])
     return mask.astype(np.uint8)
 
+def unet_image_from_tiles_partialsave(learn, in_img, tile_sz=(256, 256), scale=(4, 4), overlap_pct=(0.50, 0.50), img_info=None):
+    """
+    This function run inference on a trained model and removes tiling artifacts.  
+
+    Input:
+    - learn: learner
+    - in_img: input image (2d/3d), floating array
+    - tile_sz: XY dimension of the small tile that will be fed into GPU [p q] 
+    - scale: upsampling scale
+    - overlap_pct: overlap percent while cropping the tiles in xy dimension [alpha beta],
+                   floating tuple, ranging from 0 to 1
+    - img_info: mi, ma, max
+
+    Output:
+    - predicted image (2d), ranging from 0 to 1
+
+    """    
+    n_frames = in_img.shape[0]
+
+    if img_info:
+        mi, ma, imax = [img_info[fld] for fld in ['mi','ma','img_max']]
+        in_img = ((in_img - mi) / (ma - mi + 1e-20)).clip(0.,1.)
+    else:
+        mi, ma = 0., 1.
+    in_img  = np.stack([npzoom(in_img[i], scale, order=1) for i in range(n_frames)])
+
+    Y, X = in_img.shape[1:3]
+    p, q = tile_sz[0:2]
+    alpha, beta = overlap_pct[0:2]
+    print('Y,X=',Y,X)
+    assembled = np.zeros((X,Y))
+
+    # X = p + (m - 1) * (1 - alpha) * p + epsilonX
+    numX, epsX = divmod(X-p, p-int(p*alpha)) if X-p > 0 else (0, X)
+    numY, epsY = divmod(Y-q, q-int(q*beta)) if Y-q > 0 else (0, Y)
+    numX = int(numX)+1
+    numY = int(numY)+1
+    
+    for i in range(numX+1):
+        for j in range(numY+1):
+            crop_x_start = int(i*(1-alpha)*p)
+            crop_x_end = min(crop_x_start+p, X)
+            crop_y_start = int(j*(1-beta)*q)
+            crop_y_end = min(crop_y_start+q, Y)
+
+            src_tile = in_img[:, crop_y_start:crop_y_end, crop_x_start:crop_x_end]
+
+            in_tile = torch.zeros((p, q, n_frames))
+            in_x_size = crop_x_end - crop_x_start
+            in_y_size = crop_y_end - crop_y_start
+            if (in_y_size, in_x_size) != src_tile.shape[1:3]: set_trace()
+            in_tile[0:in_y_size, 0:in_x_size, :] = tensor(src_tile).permute(1,2,0)
+
+            if n_frames > 1:
+                img_in = MultiImage([Image(in_tile[:,:,i][None]) for i in range(n_frames)])
+            else:
+                img_in = Image(in_tile[:,:,0][None])
+            y, pred, raw_pred = learn.predict(img_in)
+
+            out_tile = pred.numpy()[0]
+
+            tileROI_x_start = int(0.5*int(alpha*p)) if crop_x_start != 0 else 0
+            tileROI_x_end = int(p-0.5*int(alpha*p)) if crop_x_end != X else int(alpha*p+epsX)
+            tileROI_y_start = int(0.5*int(beta*q)) if crop_y_start != 0 else 0
+            tileROI_y_end = int(q-0.5*int(beta*q)) if crop_y_end != Y else int(beta*q+epsY)
+
+            tileROI_x_end = X if X-q < 0 else tileROI_x_end
+            tileROI_y_end = Y if Y-p < 0 else tileROI_y_end
+
+            out_x_start = int(p-0.5*int(alpha*p)+(i-1)*(p-int(alpha*p))) if crop_x_start != 0 else 0
+            out_x_end = int(p-0.5*int(alpha*p)+i*(p-int(alpha*p))) if crop_x_end != X else X
+            out_y_start = int(q-0.5*int(beta*q)+(j-1)*(q-int(beta*q))) if crop_y_start != 0 else 0
+            out_y_end = int(q-0.5*int(beta*q)+j*(q-int(beta*q))) if crop_y_end != Y else Y
+            assembled[out_y_start:out_y_end, out_x_start:out_x_end] = out_tile[tileROI_y_start:tileROI_y_end, tileROI_x_start:tileROI_x_end] 
+
+    assembled -= assembled.min()
+    assembled /= assembled.max()
+    assembled *= (ma - mi)
+    assembled += mi
+
+    return assembled.astype(np.float32)
 
 def unet_multi_image_from_tiles(learn, in_img, tile_sz=128, scale=4, wsize=3):
     cur_size = in_img.shape[1:3]

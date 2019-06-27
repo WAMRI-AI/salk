@@ -26,8 +26,8 @@ printf "single_100mito_image_gen - Execution time: %.6f seconds" $dur >> 100mito
 
 echo "single_100mito inference finished."
 
-python metric_gen.py -e semisynth_mito -p single_100mito_best_512
-python metric_gen.py -e non-moving_mito -p single_100mito_best_512
+#python metric_gen.py -e semisynth_mito -p single_100mito_best_512
+#python metric_gen.py -e non-moving_mito -p single_100mito_best_512
 echo "single_100mito stats generated."
 
 start=$(date +%s.%N)
@@ -54,8 +54,8 @@ printf "multi_100mito_image_gen - Execution time: %.6f seconds" $dur >> 100mito_
 
 echo "multi_100mito inference finished."
 
-python metric_gen.py -e semisynth_mito -p multit_100mito_best_512
-python metric_gen.py -e non-moving_mito -p multit_100mito_best_512
+#python metric_gen.py -e semisynth_mito -p multit_100mito_best_512
+#python metric_gen.py -e non-moving_mito -p multit_100mito_best_512
 echo "multi_100mito stats generated."
 
 echo "100mito ALL DONE YAY!!"

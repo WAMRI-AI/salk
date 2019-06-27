@@ -21,7 +21,7 @@ def check_dir(p):
         sys.exit(1)
     return p
 
-def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L', baseline_dir):
+def process_tif(fn, processor, proc_func, out_fn, baseline_dir, n_depth=1, n_time=1, mode='L'):
     with PIL.Image.open(fn) as img_tif:
         n_frame = max(n_depth, n_time)
         offset_frames = n_frame // 2
@@ -57,7 +57,7 @@ def process_tif(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L',
         imageio.mimwrite(out_fldr/save_name, imgs)
         #imageio.mimwrite((out_fldr/save_name).with_suffix('.mp4'), imgs, fps=30, macro_block_size=None) 
 
-def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L', baseline_dir):
+def process_czi(fn, processor, proc_func, out_fn, baseline_dir, n_depth=1, n_time=1, mode='L'):
     stats = []
     with czifile.CziFile(fn) as czi_f:
         proc_axes, proc_shape = get_czi_shape_info(czi_f)
@@ -152,7 +152,7 @@ def process_czi(fn, processor, proc_func, out_fn, n_depth=1, n_time=1, mode='L',
             out_fldr = ensure_folder(fldr_name)
             imageio.mimwrite(out_fldr/save_name, all_y)        
 
-def process_files(src_dir, out_dir, model_dir, processor, mode, mbar=None, baseline_dir):
+def process_files(src_dir, out_dir, model_dir, baseline_dir, processor, mode, mbar=None):
     proc_map = {
         '.tif': process_tif,
         '.czi': process_czi
@@ -169,7 +169,7 @@ def process_files(src_dir, out_dir, model_dir, processor, mode, mbar=None, basel
             n_depth = n_time = 1
             if 'multiz' in processor: n_depth = num_chan
             if 'multit' in processor: n_time = num_chan
-            file_proc(fn, processor, proc_func, out_fn, n_depth=n_depth, n_time=n_time, mode=mode, baseline_dir)
+            file_proc(fn, processor, proc_func, out_fn, baseline_dir, n_depth=n_depth, n_time=n_time, mode=mode)
 
 @call_parse
 def main(
@@ -187,7 +187,7 @@ def main(
     src_dir = check_dir(src_dir)
     model_dir = check_dir(model_dir)
 
-
+    baseline_dir = []
     processors = []
     stats = []
     if baselines: 
@@ -197,4 +197,4 @@ def main(
     mbar = master_bar(processors)
     for proc in mbar:
         mbar.write(f'processing {proc}')
-        process_files(src_dir, out_dir, model_dir, proc, mode, mbar=mbar, baseline_dir=None)
+        process_files(src_dir, out_dir, model_dir, baseline_dir, proc, mode, mbar=mbar)

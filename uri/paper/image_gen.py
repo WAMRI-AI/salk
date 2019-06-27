@@ -54,7 +54,13 @@ def process_tif(fn, processor, proc_func, out_fn, baseline_dir, n_depth=1, n_tim
         fldr_name = f'{out_fn.parent}/{processor}' if baseline_dir==None else f'{baseline_dir}/{processor}'
         save_name = f'{fn.stem}.tif'
         out_fldr = ensure_folder(out_fn.parent/processor)
-        imageio.mimwrite(out_fldr/save_name, imgs)
+        try:
+            imageio.mimwrite(out_fldr/save_name, imgs)
+        except: 
+            slices = imgs.shape[0]
+            save_name = f'{fn.stem}'
+            imageio.mimwrite(out_fldr/save_name+'_1.tif', imgs(0:slices//2,:,:))
+            imageio.mimwrite(out_fldr/save_name+'_2.tif', imgs(slices//2:slices,:,:))
         #imageio.mimwrite((out_fldr/save_name).with_suffix('.mp4'), imgs, fps=30, macro_block_size=None) 
 
 def process_czi(fn, processor, proc_func, out_fn, baseline_dir, n_depth=1, n_time=1, mode='L'):
@@ -127,7 +133,14 @@ def process_czi(fn, processor, proc_func, out_fn, baseline_dir, n_depth=1, n_tim
                     if c > 1 or z > 1:
                         fldr_name = fldr_name/f'{c}_{z}'
                     out_fldr = ensure_folder(fldr_name)
-                    imageio.mimwrite(out_fldr/save_name, all_y) 
+                    try:
+                        imageio.mimwrite(out_fldr/save_name, all_y)
+                    except: 
+                        slices = all_y.shape[0]
+                        save_name = f'{fn.stem}'
+                        imageio.mimwrite(out_fldr/save_name+'_1.tif', all_y(0:slices//2,:,:))
+                        imageio.mimwrite(out_fldr/save_name+'_2.tif', all_y(slices//2:slices,:,:))
+                    #imageio.mimwrite(out_fldr/save_name, all_y) 
                     #imageio.mimwrite((out_fldr/save_name).with_suffix('.mp4'), all_y, fps=30, macro_block_size=None)
         else:
             imgs = []
@@ -147,10 +160,17 @@ def process_czi(fn, processor, proc_func, out_fn, baseline_dir, n_depth=1, n_tim
                         pred_img8 = (pred_img * np.iinfo(np.uint8).max).astype(np.uint8)
                         imgs.append(pred_img8[None])
             all_y = np.concatenate(imgs)
-            fldr_name = f'{out_fn.parent}/{processor}' if baseline_dir==None else f'{baseline_dir}/{processor}'
+            fldr_name = f'{out_fn.parent}/{processor}' if processor!='bilinear' else f'{baseline_dir}/{processor}'
             save_name = f'{fn.stem}.tif'
             out_fldr = ensure_folder(fldr_name)
-            imageio.mimwrite(out_fldr/save_name, all_y)        
+            try:
+                imageio.mimwrite(out_fldr/save_name, all_y)
+            except: 
+                slices = all_y.shape[0]
+                save_name = f'{fn.stem}'
+                imageio.mimwrite(out_fldr/save_name+'_1.tif', all_y(0:slices//2,:,:))
+                imageio.mimwrite(out_fldr/save_name+'_2.tif', all_y(slices//2:slices,:,:))
+            #imageio.mimwrite(out_fldr/save_name, all_y)        
 
 def process_files(src_dir, out_dir, model_dir, baseline_dir, processor, mode, mbar=None):
     proc_map = {
@@ -192,7 +212,7 @@ def main(
     stats = []
     if baselines: 
         processors += ['bilinear']  #'bicubic','original'
-        baseline_dir = ensure_folder('stats/bilinear')
+        baseline_dir = ensure_folder('stats')
     if models: processors += [m for m in models]
     mbar = master_bar(processors)
     for proc in mbar:

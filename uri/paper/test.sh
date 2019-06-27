@@ -3,7 +3,7 @@
 #python tile_from_info.py --out datasets/single_100mitotracker --info live_100mitotracker.csv --n_train 5000 --n_valid 200 --lr_type s --tile 512 --only mitotracker --crap_func new_crap
 #python tile_from_info.py --out datasets/multi_100mitotracker --info live_100mitotracker.csv --n_train 5000 --n_valid 200 --n_frames 5 --lr_type t --tile 512 --only mitotracker --crap_func new_crap
 start=$(date +%s.%N)
-python -m fastai.launch train.py --bs 24 --lr 5e-4 --size 256 --tile_sz 512 --datasetname single_100mitotracker --cycles 2 --save_name single_100mito --lr_type s --n_frames 1 | tee -a 100mito_trainlog.txt
+python -m fastai.launch train.py --bs 24 --lr 4e-4 --size 256 --tile_sz 512 --datasetname single_100mitotracker --cycles 2 --save_name single_100mito --lr_type s --n_frames 1 | tee -a 100mito_trainlog.txt
 dur=$(echo "$(date +%s.%N) - $start" | bc) 
 printf "single_100mito_round1 - Execution time: %.6f seconds" $dur >> 100mito_log.txt
 
@@ -31,7 +31,7 @@ python metric_gen.py -e non-moving_mito -p single_100mito_best_512
 echo "single_100mito stats generated."
 
 start=$(date +%s.%N)
-python -m fastai.launch  train.py --bs 24 --lr 5e-4 --size 256 --tile_sz 512 --datasetname multi_100mitotracker --cycles 2 --save_name multit_100mito --lr_type t --n_frames 5
+python -m fastai.launch  train.py --bs 24 --lr 4e-4 --size 256 --tile_sz 512 --datasetname multi_100mitotracker --cycles 2 --save_name multit_100mito --lr_type t --n_frames 5
 dur=$(echo "$(date +%s.%N) - $start" | bc) | tee -a 100mito_trainlog.txt
 printf "multi_100mito_round1 - Execution time: %.6f seconds" $dur >> 100mito_log.txt
 

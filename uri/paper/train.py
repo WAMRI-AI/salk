@@ -58,6 +58,7 @@ def get_data(bs, size, x_data, y_data,
             .transform_y(y_tfms, size=size)
             .databunch(bs=bs, **kwargs))
     if norm:
+        print('normalizing x and y data')
         data = data.normalize(do_y=True)
     data.c = 3
     return data
@@ -100,7 +101,7 @@ def main(
         old_unet: Param('use old unet_learner', action='store_true')=False,
         skip_train: Param('skip training, e.g. to adjust size', action='store_true') = False,
         mode: Param('image mode like L or RGB', str)='L',
-        norm: Param('normalize data', action='store_true')=False,
+        norm: Param('normalize data', bool)=True,
         l1_loss: Param('use L1 loss', action='store_true')=False,
         debug: Param('debug mode', action='store_true')=False
 ):

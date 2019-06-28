@@ -15,6 +15,7 @@ from PIL import Image
 import torchvision
 from fastprogress import *
 from skimage.measure import compare_ssim, compare_psnr
+from pdb import set_trace
 
 def norm_minmse(gt, x, normalize_gt=True):
     """
@@ -67,7 +68,7 @@ def slice_process(x1, x2, y):
     ssim2 = compare_ssim(*(y_norm2, x2_norm), data_range = 1.)
     return psnr1, ssim1, psnr2, ssim2, y_norm1, x1_norm, y_norm2, x2_norm   
   
-def stack_process(pred, bilinear, gt, exp_dir, offset_frames=0):
+def stack_process(pred, bilinear, gt, offset_frames=0):
     stack_pred = PIL.Image.open(pred)
     stack_bilinear = PIL.Image.open(bilinear)
     stack_gt  = PIL.Image.open(gt)
@@ -109,7 +110,7 @@ def stack_process(pred, bilinear, gt, exp_dir, offset_frames=0):
     #tifffile.imsave(str(exp_dir/f"{stem}_bilinearnorm.tif"), np.stack(x2_norms).astype(np.float32))
     return stack_psnr,stack_ssim,stack_lpsnr,stack_lssim
 
-def metric_gen(predset, testset, stats_dir, offset_frames=0):
+def metric_gen(predset, testset, stats_dir, offset_frames):
     save_dir = Path('stats/csv')/f'stats_{testset}_{predset}.csv'
 
     pred_dir = stats_dir/f'output/{testset}/{predset}'
@@ -130,7 +131,7 @@ def metric_gen(predset, testset, stats_dir, offset_frames=0):
     l_psnrs = []
 
     for p, l, t in progress_bar(list(zip(pred_list, bilinear_list, gt_list))):
-        stack_psnr,stack_ssim,stack_lpsnr,stack_lssim = stack_process(p,l,t,exp_dir, offset_frames)
+        stack_psnr,stack_ssim,stack_lpsnr,stack_lssim = stack_process(p,l,t,offset_frames)
 
         psnrs = np.concatenate((psnrs, stack_psnr), out=None)
         l_psnrs = np.concatenate((l_psnrs, stack_lpsnr), out=None)    
@@ -149,6 +150,6 @@ if __name__ == '__main__':
     predset = args.predset
     testset = args.experiment
     stats_dir = Path('stats/')
-    if 'multi' in predset: offset_frames = 2
+    offset_frames = 2 if 'multi' in predset else 0
     metric_gen(predset, testset, stats_dir, offset_frames)
 

@@ -1,16 +1,27 @@
 datasets datasets/single_100mitotracker datasets/single_100mitotracker/hr_t_512
 datasets datasets/single_100mitotracker datasets/single_100mitotracker/hr_t_512
-datasets datasets/single_100mitotracker datasets/single_100mitotracker/hr_t_512
-datasets datasets/single_100mitotracker datasets/single_100mitotracker/hr_t_512
 on gpu:  1
-loss:  <function mse_loss at 0x7f8392860158>
-bs: 96 size:  256 ngpu: 4
-on gpu:  2
-loss:  <function mse_loss at 0x7fe55e347158>
-bs: 96 size:  256 ngpu: 4
-on gpu:  3
-loss:  <function mse_loss at 0x7fcadb1ef158>
-bs: 96 size:  256 ngpu: 4
+loss:  <function mse_loss at 0x7f2240b47c80>
+bs: 48 size:  256 ngpu: 2
 on gpu:  0
-loss:  <function mse_loss at 0x7fe5b74db158>
-bs: 96 size:  256 ngpu: 4
+loss:  <function mse_loss at 0x7f6b04adcc80>
+bs: 48 size:  256 ngpu: 2
+normalizing x and y data
+normalizing x and y data
+epoch     train_loss  valid_loss  ssim      psnr      norm_ssim  norm_psnr  time    
+0         1.032076    0.694655    0.057972  20.092838 0.505602   21.891146  00:53     
+Better model found at epoch 0 with valid_loss value: 0.6946549415588379.
+1         0.491916    0.344004    0.150939  23.164038 0.540381   23.511551  00:35     
+Better model found at epoch 1 with valid_loss value: 0.34400367736816406.
+2         0.331937    0.308990    0.173693  23.624392 0.574292   23.939869  00:35     
+Better model found at epoch 2 with valid_loss value: 0.3089900016784668.
+3         0.272965    0.310777    0.183812  23.597450 0.587560   24.150152  00:36     
+4         0.246563    0.310433    0.192072  23.602571 0.601740   24.260584  00:37     
+5         0.236058    0.290829    0.195397  23.885004 0.604628   24.228907  00:37     
+Better model found at epoch 5 with valid_loss value: 0.29082855582237244.
+6         0.231267    0.289150    0.202728  23.910778 0.610357   24.350958  00:36     
+Better model found at epoch 6 with valid_loss value: 0.28914952278137207.
+7         0.222336    0.285265    0.209834  23.965818 0.625674   24.513924  00:36     
+Better model found at epoch 7 with valid_loss value: 0.2852652668952942.
+8         0.215439    0.277756    0.216093  24.078913 0.631677   24.561001  00:37     
+Better model found at epoch 8 with valid_loss value: 0.2777555286884308.

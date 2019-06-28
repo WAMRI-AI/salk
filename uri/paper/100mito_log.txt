@@ -1,1 +1,5 @@
-single_100mito_round1 - Execution time: 3.224640 seconds
+single_100mito_round1 - Execution time: 117.468023 secondssingle_100mito_round2 - Execution time: 289.085510 secondssingle_100mito_round3 - Execution time: 326.029566 secondson gpu:  1
+processing single_100mito_512
+single_100mito_image_gen - Execution time: 51.129949 secondsmulti_100mito_round1 - Execution time: 106.004247 secondsmulti_100mito_round2 - Execution time: 1.516868 secondsmulti_100mito_round3 - Execution time: 0.091863 secondsmulti_100mito_image_gen - Execution time: 0.174578 secondsmulti_100mito inference finished.
+multi_100mito stats generated.
+100mito ALL DONE YAY!!

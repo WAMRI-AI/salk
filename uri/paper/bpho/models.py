@@ -10,7 +10,7 @@ __all__ = ['get_named_processor', 'add_model_processor']
 
 def bilinear(img, **kwargs):
     pred_img = npzoom(img, 4, order=1)
-    return pred_img
+    return pred_img / pred_img.max()
 
 def bicubic(img, **kwargs):
     pred_img=npzoom(img, 4, order=3)
@@ -18,7 +18,7 @@ def bicubic(img, **kwargs):
 
 def original(img, **kwargs):
     pred_img = npzoom(img, 4, order=0)
-    return pred_img
+    return pred_img / pred_img.max()
 
 processors = {
     'original': (original, 1),

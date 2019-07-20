@@ -73,16 +73,17 @@ def stack_process(pred, bilinear, gt, offset_frames=0):
     stack_bilinear = PIL.Image.open(bilinear)
     stack_gt  = PIL.Image.open(gt)
 
+    stem = Path(pred).stem
     frames = stack_pred.n_frames
     stack_psnr = []
     stack_lpsnr = []
     stack_ssim = []
     stack_lssim = []
-
-    y_norm1s = []
-    x1_norms = []
-    y_norm2s = []
-    x2_norms = []
+    stack_name = []
+    #y_norm1s = []
+    #x1_norms = []
+    #y_norm2s = []
+    #x2_norms = []
 
     for i in range(frames):
         stack_pred.seek(i)
@@ -98,17 +99,19 @@ def stack_process(pred, bilinear, gt, offset_frames=0):
         stack_lpsnr.append(l_psnr)       
         stack_ssim.append(ssim)
         stack_lssim.append(l_ssim)  
+        stack_name.append(f'{stem}_z{i}.tif')
 
-        y_norm1s.append(np.array(y_norm1).copy())
-        x1_norms.append(np.array(x1_norm).copy())
-        y_norm2s.append(np.array(y_norm2).copy())
-        x2_norms.append(np.array(x2_norm).copy())
-    stem = Path(gt).stem
+        #y_norm1s.append(np.array(y_norm1).copy())
+        #x1_norms.append(np.array(x1_norm).copy())
+        #y_norm2s.append(np.array(y_norm2).copy())
+        #x2_norms.append(np.array(x2_norm).copy())
+
+
     #tifffile.imsave(str(exp_dir/f"{stem}_GTnormtopred.tif"), np.stack(y_norm1s).astype(np.float32))
     #tifffile.imsave(str(exp_dir/f"{stem}_prednorm.tif"), np.stack(x1_norms).astype(np.float32))
     #tifffile.imsave(str(exp_dir/f"{stem}_GTnormtobilinear.tif"), np.stack(y_norm2s).astype(np.float32))
     #tifffile.imsave(str(exp_dir/f"{stem}_bilinearnorm.tif"), np.stack(x2_norms).astype(np.float32))
-    return stack_psnr,stack_ssim,stack_lpsnr,stack_lssim
+    return stack_name, stack_psnr,stack_ssim,stack_lpsnr,stack_lssim
 
 def metric_gen(predset, testset, stats_dir, offset_frames):
     save_dir = Path('stats/csv')/f'stats_{testset}_{predset}.csv'
@@ -125,19 +128,21 @@ def metric_gen(predset, testset, stats_dir, offset_frames):
     bilinear_list.sort()
     gt_list.sort()
 
-    ssims = []
-    l_ssims = []
-    psnrs = []
-    l_psnrs = []
+    names = ['name']
+    ssims = ['ssims']
+    l_ssims = ['l_ssims']
+    psnrs = ['psnrs']
+    l_psnrs = ['l_psnrs']
 
     for p, l, t in progress_bar(list(zip(pred_list, bilinear_list, gt_list))):
-        stack_psnr,stack_ssim,stack_lpsnr,stack_lssim = stack_process(p,l,t,offset_frames)
+        stack_name,stack_psnr,stack_ssim,stack_lpsnr,stack_lssim = stack_process(p,l,t,offset_frames)
 
+        names = np.concatenate((names, stack_name), out=None)
         psnrs = np.concatenate((psnrs, stack_psnr), out=None)
         l_psnrs = np.concatenate((l_psnrs, stack_lpsnr), out=None)    
         ssims = np.concatenate((ssims, stack_ssim), out=None)
         l_ssims = np.concatenate((l_ssims, stack_lssim), out=None)
-    stats = zip(ssims, l_ssims, psnrs, l_psnrs)
+    stats = zip(names, ssims, l_ssims, psnrs, l_psnrs)
     save_stats(stats, save_dir)
 
 if __name__ == '__main__':
